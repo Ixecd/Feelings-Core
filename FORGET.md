@@ -3,6 +3,8 @@
 > 扫描日期：2026-06-01
 > 范围：架构设计（零代码）
 > 实现语言：Anim v2.0+（自举后——和 animi 同语言，共享类型系统）
+> 注意：Feelings-Core 不是独立项目。Core = animi 的 Pass 6-8（Personalize/DeviceMap/CodeGen）。
+>       Pass 0-5 已在 Anim v1.0 完成（FSIR JSON）。Core 是同一个二进制里的后半段——不是新东西。
 > 原则：P0 = 生产命门。P1 = 功能受限。
 
 ---
