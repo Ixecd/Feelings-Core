@@ -1,11 +1,14 @@
 # FORGET.md — Feelings-Core 待修复项
 
-> 扫描日期：2026-06-01
+> 扫描日期：2026-06-01（修订：2026-06-05）
 > 范围：架构设计（零代码）
 > 实现语言：Anim v2.0+（自举后——和 animi 同语言，共享类型系统）
 > 注意：Feelings-Core 不是独立项目。Core = animi 的 Pass 6-8（Personalize/DeviceMap/CodeGen）。
 >       Pass 0-5 已在 Anim v1.0 完成（FSIR JSON）。Core 是同一个二进制里的后半段——不是新东西。
 > 原则：P0 = 生产命门。P1 = 功能受限。
+> 价值观基线：**已完成**。所有实现决策以 [VALUES-TO-CODE.md](VALUES-TO-CODE.md) 为索引。
+>      三大类文档（红线/心理学框架/架构）→ Core 模块映射 + 实现优先级矩阵已定。
+>      实现前先读 VALUES-TO-CODE.md —— 代码就是价值观的编译产物。
 
 ---
 
@@ -46,6 +49,11 @@
 ## 编辑记录
 
 ```
+2026-06-05  v0.2 价值观基线
+            - VALUES-TO-CODE.md 创建——三大类文档→Core模块映射+优先级矩阵
+            - 价值观文档体系 === Core 的需求文档。实现前先读 VALUES-TO-CODE.md
+            - README.md 补全——项目定位、anim Pass 6-8架构
+
 2026-06-01  v0.1 初始扫描
             - 架构规范 100%
             - 代码 0%
