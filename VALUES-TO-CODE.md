@@ -64,6 +64,7 @@ Feelings 的文档体系在阶段零已经基本完成——哲学、意识、�
 | `docs/four-diagnosis.md` | 四诊合参——切/闻/望/问 的信号融合 | `fusion/engine.rs` — 四通道信号融合。矛盾检测时生理数据权重最高。实时融合延迟<50ms | 零代码 |
 | `docs/safety-system.md` | TCP慢启动+三层安全防线+保底包 | `safety/slow_start.rs` — 强度解锁的渐进策略。`safety/three_layer.rs` — 三层安全防线。`safety/safeguard.rs` — 保底包注入 | 零代码 |
 | `docs/closed-loop.md` | 闭环——体验即采集，采集即反哺 | `session/closed_loop.rs` — Session 中每一帧的生理数据→PBM微调→下一帧的评分函数偏移 | 零代码 |
+| `docs/deep/story-narrative-fairytale-gossip-rumor.md` | 信息五层+五层信息密度——叙事/故事/童话/闲言/流言 — 等控器如果把流言当成故事焊进 PBM——就会在自己的经线上焊入别人脑补出来的一段话 | `session/info_classifier.rs` — 信息分类器+InfoConfidence 五级门控 — 与 Anim 的 DataConfidence 双重防线。PBM 写入路径：步长 = DataConfidence × InfoConfidence | 零代码 — 设计文档已定稿 |
 | `docs/trauma-protocol.md` | 创伤分级分型交叉判定矩阵 | `safety/trauma_matrix.rs` — 创伤协议加载器。用户创伤类型判定→走独立路径不走标准解锁。安全阈值加倍保守 | 零代码 |
 
 ---
@@ -82,6 +83,7 @@ Feelings 的文档体系在阶段零已经基本完成——哲学、意识、�
 | P0 | `safety/damping.rs` | brain-scheduler / trauma-fork | DampingMatrix 架构——情绪梯度检测→维度冻结→解冻。不是"温和处理"。是硬实时安全门 |
 | P0 | `pbm/vector.rs` | MATRIX / VSA | PBM 超维向量的基础数据结构。全维度评分、不做二元判定、保留全部偏移历史 |
 | P0 | `session/frame.rs` | brain-scheduler / metacognition | 每帧 BinPack：评分函数+选择+后果记录。是整个 Core 的最小运行单元 |
+| P0 | `session/info_classifier.rs` | 信息五层密度 — 叙事/故事/童话/闲言/流言 | InfoConfidence 五级门控（Verified/Plausible/Uncertain/Contradicted/Foreign）— 与 Anim DataConfidence 双重 PBM 防线。步长 = DataConfidence × InfoConfidence |
 | P1 | `auth/root_anchor.rs` | PROTOCOL / KEYS | Shamir 分片恢复逻辑。AI 分片≤3/7 |
 | P1 | `feedback/calibrator.rs` | praise-backfire / procrastination | 反馈校准器——区分过程标记vs终点标记。时间贴现因子 |
 
