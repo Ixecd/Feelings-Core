@@ -40,5 +40,5 @@ Feelings-OS（Rust + C）
 
 ## License
 
-私有。GOVERNANCE 红线——Core 永久保留，不公开。
+MIT License. 完全开源。
 
