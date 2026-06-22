@@ -1,0 +1,12 @@
+[package]
+name = "feelings-core"
+version = "0.1.0"
+edition = "2021"
+description = "Feelings-Core — 神经感受引擎。FSIR × PBM → PSIR/DSIR/ESIR"
+license = "MIT"
+repository = "https://github.com/Ixecd/Feelings-Core"
+authors = ["qc <Ixecd>"]
+
+[dependencies]
+# Shared types with Anim — workspace dependency
+# animi = { path = "../Anim" }
