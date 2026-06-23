@@ -1,5 +1,3 @@
-// src/dsir/route.rs — 设备 → 通路 → 信号分配
-//
-// device_map(): Box<dyn DeviceCapability> 多态路由
-// primary_pathway + fallback_pathways → 质量折损 + degradation log
-// injected_mode_route(): 零设备时走激素半衰期窗口
+// Feelings-Core — DSIR 路由
+// Pass 7: 设备 → 通路 → 信号分配。DeviceCapability 多态路由 + InjectedMode。
+// v0.1: 骨架——多设备路由逻辑待 v0.4+ 实现。
