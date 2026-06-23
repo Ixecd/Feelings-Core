@@ -4,6 +4,7 @@
 // 职责: ColdStartGuard / DampingState / SessionLabel / DataConfidence /
 //       DefenceLevel / 四维 PBM 偏移值 [Visceral, Emotional, Tactile, Auditory]
 
+use crate::config::CoreConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -86,6 +87,13 @@ impl Default for ColdStartGuard {
 }
 
 impl ColdStartGuard {
+    pub fn from_config(config: &CoreConfig) -> Self {
+        ColdStartGuard {
+            threshold: config.cold_start.sessions_threshold,
+            session_count: 0,
+        }
+    }
+
     pub fn is_cold_start(&self) -> bool {
         self.session_count < self.threshold
     }
@@ -137,6 +145,16 @@ impl DampingState {
             freeze_factor,
             cold_start,
         }
+    }
+
+    /// 从 CoreConfig 构造——所有参数从配置读取。
+    pub fn from_config(config: &CoreConfig, cold_start: bool) -> Self {
+        Self::new(
+            [1.0; 4],
+            config.damping.ema_alpha,
+            config.damping.freeze_factor,
+            cold_start,
+        )
     }
 
     pub fn current_steps(&self) -> [(PbmDimension, f64); 4] {
@@ -194,6 +212,16 @@ impl DampingMatrix {
             PbmDimension::Visceral => 1.5,
             PbmDimension::Tactile => 3.0,
             PbmDimension::Auditory => 2.0,
+        }
+    }
+
+    /// 从 CoreConfig 读取梯度阈值——每维度独立配置。
+    pub fn gradient_threshold_from_config(dim: PbmDimension, config: &CoreConfig) -> f64 {
+        match dim {
+            PbmDimension::Emotional => config.damping.emotional_threshold,
+            PbmDimension::Visceral => config.damping.visceral_threshold,
+            PbmDimension::Tactile => config.damping.tactile_threshold,
+            PbmDimension::Auditory => config.damping.auditory_threshold,
         }
     }
 

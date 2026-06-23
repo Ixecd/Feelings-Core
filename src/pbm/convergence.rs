@@ -3,6 +3,7 @@
 // Sigmoidal 缩放 + 四维差异化冷启动系数 + DampingMatrix +
 // 跨 Session 收敛 + DataConfidence 步长乘数 + 冷启动阻尼淡入窗
 
+use crate::config::CoreConfig;
 use crate::pbm::DefenceLevel;
 
 /// PBM 四维差异化冷启动基线偏移系数。
@@ -38,13 +39,23 @@ impl Default for PbmColdStartCoefficients {
 ///   compression(x) = 1 − α×σ(x), α=0.5
 ///   applied = original × baseline_coeff × compression(x)
 pub fn sigmoidal_scale(original: u32, baseline_coeff: f64, cap: u32) -> u32 {
+    sigmoidal_scale_with_config(original, baseline_coeff, cap, &CoreConfig::default())
+}
+
+/// 从 CoreConfig 读取 sigmoidal 参数。
+pub fn sigmoidal_scale_with_config(
+    original: u32,
+    baseline_coeff: f64,
+    cap: u32,
+    config: &CoreConfig,
+) -> u32 {
     if cap == 0 {
         return 0;
     }
     let x = original as f64 / cap as f64;
-    let k = 6.0_f64;
-    let x0 = 0.5;
-    let alpha = 0.5;
+    let k = config.sigmoidal.k;
+    let x0 = config.sigmoidal.x0;
+    let alpha = config.sigmoidal.compression_alpha;
     let sigmoid = 1.0 / (1.0 + (-k * (x - x0)).exp());
     let compression = 1.0 - alpha * sigmoid;
     let scaled = original as f64 * baseline_coeff * compression;
