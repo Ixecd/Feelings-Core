@@ -94,6 +94,14 @@ impl<const D: usize, S: FeelingTarget> NeuroEnergyTracker<D, S> {
     ) -> Result<(), &'static str> {
         let idx = S::dim_index(dim);
         let threshold = profile.critical_threshold(dim);
+
+        // 时钟单调性守卫——回拨/重放数据 → 跳过本次摄入，不污染漏桶
+        if let Some(last) = self.last_tick_ns {
+            if now_ns <= last {
+                return Ok(());
+            }
+        }
+
         if self.refractory_active[idx] {
             self.refractory_counter[idx] = self.refractory_counter[idx].saturating_sub(1);
             if self.cumulative_energy[idx] < 0.5 * threshold {

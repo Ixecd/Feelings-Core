@@ -41,8 +41,18 @@
 ---
 
 ## 编辑记录
-
 ```
+
+2026-06-24  v0.4 架构审计五项 + 泛型重构落地
+            P0 5/6/7 闭合: D2/D3结构性防御(阈值收紧+GroundingSignal) +
+            Species泛型(FeelingTarget trait+NeuroEnergyTracker<D,S>+Session<D,S>) +
+            AOT仿真器(6 shape帧级积分+preflight_check) +
+            PersonalityAnchor(tone/empathy/push/gender_bias三种预设) +
+            SafetyBreach遥测枚举(CrossDimCoupling+GlobalBucketOverload) +
+            pbm↔species泛型桥接(PbmDimension↔HumanDimension互转) +
+            时钟单调性守卫(now_ns≤last→跳过摄入)。
+            26 tests / clippy 零警告 / Makefile 对齐 Anim。
+
 2026-06-24  v0.3 Core 模块化重构 + 架构审计(六条硬伤)
             P0: +3 (安全类型退化/AOT仿真/Species泛型) — 0/4→0/7
             P1: +2 (性格锚点虚空/浮点冲突) + SafetyBreach遥测枚举已落地
