@@ -25,6 +25,12 @@ pub struct UserSafetyProfile<const D: usize, S: FeelingTarget> {
 
 impl<const D: usize, S: FeelingTarget> UserSafetyProfile<D, S> {
     pub fn standard(leak_rates: [f64; D], critical_thresholds: [f64; D]) -> Self {
+        debug_assert_eq!(
+            D,
+            S::DIM_COUNT,
+            "Dimension mismatch for species {}",
+            S::species_name()
+        );
         UserSafetyProfile {
             kind: ProfileKind::Standard,
             leak_rates,
@@ -56,6 +62,12 @@ pub struct NeuroEnergyTracker<const D: usize, S: FeelingTarget> {
 
 impl<const D: usize, S: FeelingTarget> NeuroEnergyTracker<D, S> {
     pub fn from_config(config: &CoreConfig) -> Self {
+        debug_assert_eq!(
+            D,
+            S::DIM_COUNT,
+            "Tracker dimension mismatch for species {}",
+            S::species_name()
+        );
         NeuroEnergyTracker {
             cumulative_energy: [0.0; D],
             last_tick_ns: None,
@@ -136,8 +148,12 @@ impl<const D: usize, S: FeelingTarget> NeuroEnergyTracker<D, S> {
     pub fn energy(&self, dim: S::Dimension) -> f64 {
         self.cumulative_energy[S::dim_index(dim)]
     }
-    pub fn all_energies(&self) -> Vec<f64> {
-        (0..D).map(|i| self.cumulative_energy[i]).collect()
+    /// 返回四维能量数组——零堆分配。硬实时路径直接拷⻉。
+    pub fn all_energies(&self) -> [f64; D] {
+        self.cumulative_energy
+    }
+    pub fn energies(&self) -> &[f64; D] {
+        &self.cumulative_energy
     }
     pub fn reset(&mut self) {
         self.cumulative_energy = [0.0; D];
