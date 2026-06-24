@@ -5,9 +5,22 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Core 服务的物种类型——决定默认参数基线。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum Kind {
+    #[default]
+    Human,
+    Canine,
+    Feline,
+    Psittacine,
+}
+
 /// Core 运行时完整配置。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoreConfig {
+    /// 物种类型——决定默认参数基线。
+    #[serde(default)]
+    pub kind: Kind,
     /// 冷启动参数。
     pub cold_start: ColdStartConfig,
     /// 阻尼参数。
@@ -127,6 +140,7 @@ pub struct DefenceSensitivityConfig {
 impl Default for CoreConfig {
     fn default() -> Self {
         CoreConfig {
+            kind: Kind::Human,
             cold_start: ColdStartConfig {
                 sessions_threshold: 10,
                 damping_window: 5,
