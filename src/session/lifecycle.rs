@@ -10,10 +10,10 @@
 //   → 根据 source 精准下发 D3 对冲信号 (主动麻痹锚点——TODO)
 
 use crate::pbm::DefenceLevel;
+use crate::session::anchor::PersonalityAnchor;
 use crate::session::grounding::GroundingSignal;
 use crate::species::FeelingTarget;
 use crate::tracker::{NeuroEnergyTracker, UserSafetyProfile};
-use std::marker::PhantomData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SessionId(pub u64);
@@ -52,8 +52,8 @@ pub struct Session<const D: usize, S: FeelingTarget> {
     pub tracker: NeuroEnergyTracker<D, S>,
     pub profile: UserSafetyProfile<D, S>,
     frame_windows: [u32; D],
-    /// PersonalityAnchor 预留舱位——VSA 向量、风格倾向、性别偏置 (TODO v0.5)
-    _personality_anchor: PhantomData<S>,
+    /// 教练 AI 的性格锚点——VSA 超维空间起始偏置。
+    pub personality: PersonalityAnchor,
 }
 
 impl<const D: usize, S: FeelingTarget> Session<D, S> {
@@ -76,7 +76,7 @@ impl<const D: usize, S: FeelingTarget> Session<D, S> {
             tracker,
             profile,
             frame_windows: [0; D],
-            _personality_anchor: PhantomData,
+            personality: PersonalityAnchor::default(),
         }
     }
 

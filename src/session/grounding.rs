@@ -16,21 +16,31 @@ pub struct GroundingSignal<const D: usize> {
     pub channels: [GroundingChannel; D],
 }
 
-const QUIET: GroundingChannel = GroundingChannel { intensity: 0, silenced: true };
-const CALM: GroundingChannel = GroundingChannel { intensity: 5, silenced: false };
+const QUIET: GroundingChannel = GroundingChannel {
+    intensity: 0,
+    silenced: true,
+};
+const CALM: GroundingChannel = GroundingChannel {
+    intensity: 5,
+    silenced: false,
+};
 
 impl<const D: usize> GroundingSignal<D> {
     /// D3 默认 grounding——仅 Visceral(idx 0) 输出低频镇定，其余全静默。
     pub fn d3_default() -> Self {
         let mut channels = [QUIET; D];
-        if D > 0 { channels[0] = CALM; }
+        if D > 0 {
+            channels[0] = CALM;
+        }
         GroundingSignal { channels }
     }
 
     /// 根据触发源维度定制——源头维度不施加额外刺激。
     pub fn for_source(source_idx: usize) -> Self {
         let mut channels = [QUIET; D];
-        if D > 0 && source_idx != 0 { channels[0] = CALM; }
+        if D > 0 && source_idx != 0 {
+            channels[0] = CALM;
+        }
         GroundingSignal { channels }
     }
 }
