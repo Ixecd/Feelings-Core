@@ -10,6 +10,7 @@
 //   → 根据 source 精准下发 D3 对冲信号 (主动麻痹锚点——TODO)
 
 use crate::pbm::DefenceLevel;
+use crate::session::grounding::GroundingSignal;
 use crate::species::FeelingTarget;
 use crate::tracker::{NeuroEnergyTracker, UserSafetyProfile};
 use std::marker::PhantomData;
@@ -101,13 +102,14 @@ impl<const D: usize, S: FeelingTarget> Session<D, S> {
         }
     }
 
-    /// 处理跨维度耦合熔断——根据 source 维度精准下发 D3 对冲信号。
-    /// v0.4 骨架——当前仅记录相位切换，主动麻痹锚点待落实。
-    pub fn handle_safety_breach(&mut self, source: S::Dimension) {
+    /// 处理跨维度耦合熔断——根据 source 维度精准下发 D3 主动麻痹锚点。
+    ///
+    /// D3 不是"停"——是"按回地面"。
+    /// source 维度不施加额外刺激——其余维度全静默——
+    /// 仅 Visceral(idx 0) 输出低频 steady 镇定信号。
+    pub fn handle_safety_breach(&mut self, source: S::Dimension) -> GroundingSignal<D> {
         self.phase = SessionPhase::Aborted;
         self.tracker.reset();
-        // TODO v0.4: 根据 source 下发主动麻痹锚点信号——
-        //   耳后 VNS 低频 steady / 腕部 CT 纤维静默 / 颞部 α 波引导
-        let _ = source; // 占位——消未使用警告
+        GroundingSignal::<D>::for_source(S::dim_index(source))
     }
 }

@@ -1,4 +1,5 @@
 // Feelings-Core — Session 生命周期管理
 
 pub mod cooldown;
+pub mod grounding;
 pub mod lifecycle;
