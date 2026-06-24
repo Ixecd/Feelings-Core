@@ -206,17 +206,9 @@ impl DampingMatrix {
         }
     }
 
-    pub fn gradient_threshold(dim: PbmDimension) -> f64 {
-        match dim {
-            PbmDimension::Emotional => 2.0,
-            PbmDimension::Visceral => 1.5,
-            PbmDimension::Tactile => 3.0,
-            PbmDimension::Auditory => 2.0,
-        }
-    }
-
     /// 从 CoreConfig 读取梯度阈值——每维度独立配置。
-    pub fn gradient_threshold_from_config(dim: PbmDimension, config: &CoreConfig) -> f64 {
+    /// 不再提供硬编码后备——每个人阈值不同，必须从配置或采集数据中确定。
+    pub fn gradient_threshold(dim: PbmDimension, config: &CoreConfig) -> f64 {
         match dim {
             PbmDimension::Emotional => config.damping.emotional_threshold,
             PbmDimension::Visceral => config.damping.visceral_threshold,
@@ -228,6 +220,15 @@ impl DampingMatrix {
     pub fn apply(
         gradients: &[(PbmDimension, f64); 4],
         current_steps: &[(PbmDimension, f64); 4],
+    ) -> HashMap<PbmDimension, StepState> {
+        Self::apply_with_config(gradients, current_steps, &CoreConfig::default())
+    }
+
+    /// 从 CoreConfig 读取梯度阈值——每个人阈值不同。
+    pub fn apply_with_config(
+        gradients: &[(PbmDimension, f64); 4],
+        current_steps: &[(PbmDimension, f64); 4],
+        config: &CoreConfig,
     ) -> HashMap<PbmDimension, StepState> {
         let step_map = |dim: PbmDimension| -> f64 {
             current_steps
@@ -241,7 +242,7 @@ impl DampingMatrix {
             .map(|(d, _)| (*d, StepState::Active))
             .collect();
         for (dim, grad) in gradients.iter() {
-            let threshold = Self::gradient_threshold(*dim) * step_map(*dim);
+            let threshold = Self::gradient_threshold(*dim, config) * step_map(*dim);
             if *grad > threshold {
                 for target in Self::triggers(*dim) {
                     if *target != *dim {
