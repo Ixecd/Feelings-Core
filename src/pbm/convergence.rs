@@ -62,13 +62,18 @@ pub fn sigmoidal_scale_with_config(
     (scaled.round() as u32).min(cap)
 }
 
-/// 防御敏感系数。
+/// 防御敏感系数——从 CoreConfig 读取。
 pub fn d_sensitivity(defence_level: Option<DefenceLevel>) -> f64 {
+    d_sensitivity_with_config(defence_level, &CoreConfig::default())
+}
+
+/// 从 CoreConfig 读取防御敏感系数。
+pub fn d_sensitivity_with_config(defence_level: Option<DefenceLevel>, config: &CoreConfig) -> f64 {
     match defence_level {
-        None => 1.0,
-        Some(DefenceLevel::D1) => 1.3,
-        Some(DefenceLevel::D2) => 1.8,
-        Some(DefenceLevel::D3) => 2.5,
+        None => config.defence_sensitivity.none,
+        Some(DefenceLevel::D1) => config.defence_sensitivity.d1,
+        Some(DefenceLevel::D2) => config.defence_sensitivity.d2,
+        Some(DefenceLevel::D3) => config.defence_sensitivity.d3,
     }
 }
 

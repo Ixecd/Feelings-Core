@@ -20,6 +20,8 @@ pub struct CoreConfig {
     pub cold_start_coeffs: ColdStartCoeffsConfig,
     /// 用户安全档案——四维漏桶基线。
     pub safety_profile: SafetyProfileConfig,
+    /// 防御敏感系数——每个 DefenceLevel 放大倍数不同。
+    pub defence_sensitivity: DefenceSensitivityConfig,
     /// PBM 维度数量。当前 = 4 (Visceral/Emotional/Tactile/Auditory)。
     /// 新设备入列后递增——17 条 NeuralPathway 已在 ADR 016 枚举。
     pub dimension_count: usize,
@@ -112,6 +114,16 @@ pub struct SafetyProfileConfig {
     pub standard_critical_thresholds: [f64; 4],
 }
 
+/// 防御敏感系数——每个 DefenceLevel 对应不同的放大倍数。
+/// None = 标准感知 / D1 = 轻度敏感 / D2 = 高度敏感 / D3 = 极限敏感。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DefenceSensitivityConfig {
+    pub none: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub d3: f64,
+}
+
 impl Default for CoreConfig {
     fn default() -> Self {
         CoreConfig {
@@ -149,6 +161,12 @@ impl Default for CoreConfig {
             safety_profile: SafetyProfileConfig {
                 standard_leak_rates: [2.0; 4],
                 standard_critical_thresholds: [600.0; 4],
+            },
+            defence_sensitivity: DefenceSensitivityConfig {
+                none: 1.0,
+                d1: 1.3,
+                d2: 1.8,
+                d3: 2.5,
             },
             dimension_count: 4,
         }
