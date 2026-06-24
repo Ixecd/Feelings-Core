@@ -35,10 +35,14 @@ impl<const D: usize> GroundingSignal<D> {
         GroundingSignal { channels }
     }
 
-    /// 根据触发源维度定制——源头维度不施加额外刺激。
+    /// 根据触发源维度定制——无论哪个维度熔断，Visceral(idx 0)始终输出低频镇定。
     pub fn for_source(source_idx: usize) -> Self {
+        assert!(source_idx < D, "source_idx {source_idx} out of dimension bounds {D}");
         let mut channels = [QUIET; D];
-        if D > 0 && source_idx != 0 {
+        if D > 0 {
+            // 无论哪个维度熔断——内脏始终承担迷走神经低频镇定的职责。
+            // 内脏自身熔断 → 仍输出 CALM，按回地面。
+            // 其他维度熔断 → 内脏输出 CALM，源头维度保持 QUIET（全静默）。
             channels[0] = CALM;
         }
         GroundingSignal { channels }

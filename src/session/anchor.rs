@@ -53,6 +53,10 @@ impl PersonalityAnchor {
     }
 
     /// qc 镜像风格——极限推动。
+    ///
+    /// 安全注意：push_strength=0.9 + tone=1.0 会加速神经能量多维累积。
+    /// v0.5+ 接入完整 VSA 后——当 DefenceLevel 升级到 D2 时，
+    /// 系统应强制 clamp push_strength ≤ 0.4，温和化解硬核教练把用户直接推到 D3 的风险。
     pub fn qc_mirror() -> Self {
         PersonalityAnchor {
             tone: 1.0,

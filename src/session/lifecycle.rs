@@ -63,7 +63,7 @@ impl<const D: usize, S: FeelingTarget> Session<D, S> {
         profile: UserSafetyProfile<D, S>,
         tracker: NeuroEnergyTracker<D, S>,
     ) -> Self {
-        debug_assert_eq!(
+        assert_eq!(
             D,
             S::DIM_COUNT,
             "Session dimension mismatch for species {}",
@@ -110,6 +110,7 @@ impl<const D: usize, S: FeelingTarget> Session<D, S> {
     pub fn handle_safety_breach(&mut self, source: S::Dimension) -> GroundingSignal<D> {
         self.phase = SessionPhase::Aborted;
         self.tracker.reset();
+        self.frame_windows = [0; D]; // 清空时域窗口——防止残留计数污染恢复后的新 Session
         GroundingSignal::<D>::for_source(S::dim_index(source))
     }
 }
