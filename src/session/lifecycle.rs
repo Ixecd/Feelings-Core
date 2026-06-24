@@ -1,63 +1,87 @@
-// Feelings-Core — Session 生命周期管理
+// Feelings-Core — Session 生命周期管理（泛型）
 //
-// Session: start → 帧循环 → end/abort
-// 每帧: tracker.intake_and_verify() → cross_dim_coupling() → cooldown check
-// Session 结束: PBM 偏移 + tracker 状态写回 CoreConfig
+// Session<const D, S> = 持有漏桶 + 用户档案 + 帧窗口的完整运行时状态。
+// D = 维度数, S = 物种 (Human / Psittacine / ...)
+//
+// 帧级循环:
+//   tracker.intake_and_verify() → verify_cross_dimension() → tick_frame_window()
+// 熔断时:
+//   SafetyBreach<CrossDimCoupling { source, .. }> → phase = Aborted
+//   → 根据 source 精准下发 D3 对冲信号 (主动麻痹锚点——TODO)
 
-use crate::pbm::PbmDimension;
+use crate::pbm::DefenceLevel;
+use crate::species::FeelingTarget;
+use crate::tracker::{NeuroEnergyTracker, UserSafetyProfile};
+use std::marker::PhantomData;
 
-/// Session 标识符。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SessionId(pub u64);
 
-/// Session 配置——启动时加载。
 #[derive(Debug, Clone)]
 pub struct SessionConfig {
-    /// 当前 user_cap——来自 PBM 或 CoreConfig。
     pub user_cap: u32,
-    /// 帧窗口硬上限（帧数）。单维度连续高频注入不得超此值。0 = 无限制。
     pub max_frame_window: u32,
-    /// DefenceLevel——来自 Core PBM。None = 普通用户。
-    pub defence_level: Option<crate::pbm::DefenceLevel>,
-    /// 锚点置信度 R (0-1)。R<0.3→cap 硬上限 20。
+    pub defence_level: Option<DefenceLevel>,
     pub anchor_confidence: Option<f64>,
 }
 
-/// Session 运行阶段。
+impl SessionConfig {
+    pub fn default_human() -> Self {
+        SessionConfig {
+            user_cap: 100,
+            max_frame_window: 5000,
+            defence_level: None,
+            anchor_confidence: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionPhase {
-    /// 初始化——加载 FSIR + CoreConfig。
     Init,
-    /// 帧循环中——每 1ms 一帧。
     Running,
-    /// 正常结束——用户主动退出。PBM 全量更新。
     Ended,
-    /// 异常终止——熔断触发。PBM 仅更新安全阈值。
     Aborted,
 }
 
-/// Session 管理器——持有本次 Session 的全部运行时状态。
-pub struct Session {
+pub struct Session<const D: usize, S: FeelingTarget> {
     pub id: SessionId,
     pub phase: SessionPhase,
     pub config: SessionConfig,
-    /// 每维度当前帧窗口计数——超出 max_frame_window 则强制降级。
-    frame_windows: [u32; 4],
+    pub tracker: NeuroEnergyTracker<D, S>,
+    pub profile: UserSafetyProfile<D, S>,
+    frame_windows: [u32; D],
+    /// PersonalityAnchor 预留舱位——VSA 向量、风格倾向、性别偏置 (TODO v0.5)
+    _personality_anchor: PhantomData<S>,
 }
 
-impl Session {
-    pub fn new(config: SessionConfig) -> Self {
+impl<const D: usize, S: FeelingTarget> Session<D, S> {
+    pub fn new(
+        id: SessionId,
+        config: SessionConfig,
+        profile: UserSafetyProfile<D, S>,
+        tracker: NeuroEnergyTracker<D, S>,
+    ) -> Self {
+        debug_assert_eq!(
+            D,
+            S::DIM_COUNT,
+            "Session dimension mismatch for species {}",
+            S::species_name()
+        );
         Session {
-            id: SessionId(0),
+            id,
             phase: SessionPhase::Init,
             config,
-            frame_windows: [0; 4],
+            tracker,
+            profile,
+            frame_windows: [0; D],
+            _personality_anchor: PhantomData,
         }
     }
 
-    /// 帧窗口递增——达到上限返回 true（触发降级）。
-    pub fn tick_frame_window(&mut self, dim: PbmDimension) -> bool {
-        let idx = crate::pbm::dim_index(dim);
+    /// 帧窗口递增——维度由物种关联类型决定。
+    pub fn tick_frame_window(&mut self, dim: S::Dimension) -> bool {
+        let idx = S::dim_index(dim);
         if self.config.max_frame_window == 0 {
             return false;
         }
@@ -65,16 +89,25 @@ impl Session {
         self.frame_windows[idx] >= self.config.max_frame_window
     }
 
-    /// 重置指定维度的帧窗口（恢复帧到来后）。
-    pub fn reset_frame_window(&mut self, dim: PbmDimension) {
-        self.frame_windows[crate::pbm::dim_index(dim)] = 0;
+    pub fn reset_frame_window(&mut self, dim: S::Dimension) {
+        self.frame_windows[S::dim_index(dim)] = 0;
     }
 
-    /// 低锚点置信度硬上限——R<0.3 → cap = 20。
+    /// 低锚点置信度硬上限。
     pub fn effective_cap(&self) -> u32 {
         match self.config.anchor_confidence {
             Some(r) if r < 0.3 => self.config.user_cap.min(20),
             _ => self.config.user_cap,
         }
+    }
+
+    /// 处理跨维度耦合熔断——根据 source 维度精准下发 D3 对冲信号。
+    /// v0.4 骨架——当前仅记录相位切换，主动麻痹锚点待落实。
+    pub fn handle_safety_breach(&mut self, source: S::Dimension) {
+        self.phase = SessionPhase::Aborted;
+        self.tracker.reset();
+        // TODO v0.4: 根据 source 下发主动麻痹锚点信号——
+        //   耳后 VNS 低频 steady / 腕部 CT 纤维静默 / 颞部 α 波引导
+        let _ = source; // 占位——消未使用警告
     }
 }
