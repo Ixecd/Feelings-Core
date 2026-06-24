@@ -10,4 +10,5 @@ pub mod dsir;
 pub mod pbm;
 pub mod personalize;
 pub mod session;
+pub mod species;
 pub mod tracker;

@@ -1,15 +1,12 @@
-// Feelings-Core — NeuroEnergyTracker 四维漏桶
+// Feelings-Core — NeuroEnergyTracker<const D: usize, S> 泛型漏桶
 //
-// ADR 011: 时域能量积分与生物漏桶安全。Session 级状态——每帧 intake_and_verify()。
-// 非线性泄漏（防 PWM）、不应期保护窗、跨维度耦合 σ、全局总耦合能耗漏桶。
-//
-// 当前默认值基于人类生理。猫/狗/鹦鹉换 CoreConfig 即可。
+// D = 维度数 (编译期常量), S = 物种 (决定维度类型)
+// 调用方用法: NeuroEnergyTracker<{Human::DIM_COUNT}, Human>
 
 use crate::config::CoreConfig;
-use crate::pbm::dim_index;
-use crate::pbm::PbmDimension;
+use crate::species::FeelingTarget;
+use std::marker::PhantomData;
 
-/// 安全 Profile 类型——决定漏桶参数矩阵的梯度。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProfileKind {
     Standard,
@@ -19,102 +16,69 @@ pub enum ProfileKind {
     DefenceD3,
 }
 
-/// 用户安全档案——持有四维漏桶参数。
-#[derive(Debug, Clone, Copy)]
-pub struct UserSafetyProfile {
+pub struct UserSafetyProfile<const D: usize, S: FeelingTarget> {
     pub kind: ProfileKind,
-    /// 每维度能量泄漏速率（强度分/秒）。越高漏得越快→不容易超限。
-    pub leak_rates: [f64; 4],
-    /// 每维度临界能量阈值——累积超过此值即 SafetyBreach。
-    pub critical_thresholds: [f64; 4],
+    pub leak_rates: [f64; D],
+    pub critical_thresholds: [f64; D],
+    pub _phantom: PhantomData<S>,
 }
 
-impl Default for UserSafetyProfile {
-    fn default() -> Self {
+impl<const D: usize, S: FeelingTarget> UserSafetyProfile<D, S> {
+    pub fn standard(leak_rates: [f64; D], critical_thresholds: [f64; D]) -> Self {
         UserSafetyProfile {
             kind: ProfileKind::Standard,
-            leak_rates: [2.0; 4],
-            critical_thresholds: [600.0; 4],
+            leak_rates,
+            critical_thresholds,
+            _phantom: PhantomData,
         }
     }
-}
-
-impl UserSafetyProfile {
-    pub fn standard() -> Self {
-        Self::default()
+    pub fn leak_rate(&self, dim: S::Dimension) -> f64 {
+        self.leak_rates[S::dim_index(dim)]
     }
-    pub fn leak_rate(&self, dim: PbmDimension) -> f64 {
-        self.leak_rates[dim_index(dim)]
-    }
-    pub fn critical_threshold(&self, dim: PbmDimension) -> f64 {
-        self.critical_thresholds[dim_index(dim)]
+    pub fn critical_threshold(&self, dim: S::Dimension) -> f64 {
+        self.critical_thresholds[S::dim_index(dim)]
     }
 }
 
-/// 四维独立生物漏桶——模拟神经递质重摄取/代谢清除。
-///
-/// 每维度一个独立漏桶。持续摄入→累积，泄漏→衰减。
-/// 触碰 90% 阈值→不应期，超过临界值→SafetyBreach。
-#[derive(Debug, Clone)]
-pub struct NeuroEnergyTracker {
-    /// 四维当前累积能量。[Visceral, Emotional, Tactile, Auditory]
-    cumulative_energy: [f64; 4],
-    /// 上次摄入时间戳(纳秒)。用于算两次帧间的泄漏时长。
+pub struct NeuroEnergyTracker<const D: usize, S: FeelingTarget> {
+    cumulative_energy: [f64; D],
     last_tick_ns: Option<u64>,
-    /// 最大采样间隔(秒)。超过=时钟挂起——不泄漏，保护窗。
     max_dt: f64,
-    /// 非线性泄漏系数γ。能量越高漏越快——γ越大加速越明显。
     nonlinear_gamma: f64,
-    /// 不应期激活标志——触碰 90% 阈值后启动。
-    refractory_active: [bool; 4],
-    /// 不应期剩余帧数——倒计时至零后恢复。
-    refractory_counter: [u32; 4],
-    /// 不应期持续帧数。在此窗口内暂停能量摄入。
+    refractory_active: [bool; D],
+    refractory_counter: [u32; D],
     refractory_frames: u32,
-    /// 跨维度耦合强度σ。一维充盈→同比压缩其他维临界阈值。
     pub(crate) sigma: f64,
-    /// 全局桶权重α。四维能量和×α vs 全局阈值。
     pub(crate) global_alpha: f64,
-    /// 全局桶比例β。全局阈值=四维临界阈值和×β。超限→熔断。
     pub(crate) global_beta: f64,
+    pub _phantom: PhantomData<S>,
 }
 
-impl Default for NeuroEnergyTracker {
-    fn default() -> Self {
-        Self::from_config(&CoreConfig::default())
-    }
-}
-
-impl NeuroEnergyTracker {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// 从 CoreConfig 构造——所有参数从配置读取。
+impl<const D: usize, S: FeelingTarget> NeuroEnergyTracker<D, S> {
     pub fn from_config(config: &CoreConfig) -> Self {
         NeuroEnergyTracker {
-            cumulative_energy: [0.0; 4],
+            cumulative_energy: [0.0; D],
             last_tick_ns: None,
             max_dt: config.leaky_bucket.max_dt_seconds,
             nonlinear_gamma: config.leaky_bucket.nonlinear_gamma,
-            refractory_active: [false; 4],
-            refractory_counter: [0; 4],
+            refractory_active: [false; D],
+            refractory_counter: [0; D],
             refractory_frames: config.leaky_bucket.refractory_frames,
             sigma: config.leaky_bucket.sigma,
             global_alpha: config.leaky_bucket.global_alpha,
             global_beta: config.leaky_bucket.global_beta,
+            _phantom: PhantomData,
         }
     }
 
-    /// 每帧摄入强度 + 校验是否超限。
     pub fn intake_and_verify(
         &mut self,
         intensity: u32,
-        dim: PbmDimension,
-        profile: &UserSafetyProfile,
+        dim: S::Dimension,
+        profile: &UserSafetyProfile<D, S>,
         now_ns: u64,
     ) -> Result<(), &'static str> {
-        let idx = dim_index(dim);
+        let idx = S::dim_index(dim);
         let threshold = profile.critical_threshold(dim);
         if self.refractory_active[idx] {
             self.refractory_counter[idx] = self.refractory_counter[idx].saturating_sub(1);
@@ -169,19 +133,20 @@ impl NeuroEnergyTracker {
         Ok(())
     }
 
-    pub fn energy(&self, dim: PbmDimension) -> f64 {
-        self.cumulative_energy[dim_index(dim)]
+    pub fn energy(&self, dim: S::Dimension) -> f64 {
+        self.cumulative_energy[S::dim_index(dim)]
+    }
+    pub fn all_energies(&self) -> Vec<f64> {
+        (0..D).map(|i| self.cumulative_energy[i]).collect()
     }
     pub fn reset(&mut self) {
-        self.cumulative_energy = [0.0; 4];
+        self.cumulative_energy = [0.0; D];
         self.last_tick_ns = None;
-        self.refractory_active = [false; 4];
-        self.refractory_counter = [0; 4];
+        self.refractory_active = [false; D];
+        self.refractory_counter = [0; D];
     }
 }
 
-/// 非线性泄漏速率。
-/// LeakRate(E) = baseline × (1 + γ × E/threshold)——能量越高漏得越快。
 pub fn effective_leak_rate(cumulative: f64, threshold: f64, baseline: f64, gamma: f64) -> f64 {
     if threshold <= 0.0 {
         return baseline;
@@ -192,40 +157,47 @@ pub fn effective_leak_rate(cumulative: f64, threshold: f64, baseline: f64, gamma
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::species::{Human, HumanDimension};
+
+    fn human_profile() -> UserSafetyProfile<{ Human::DIM_COUNT }, Human> {
+        UserSafetyProfile::standard([2.0; Human::DIM_COUNT], [600.0; Human::DIM_COUNT])
+    }
+
+    type HumanTracker = NeuroEnergyTracker<{ Human::DIM_COUNT }, Human>;
+
     #[test]
     fn zero_intensity_does_nothing() {
-        let mut t = NeuroEnergyTracker::new();
-        let p = UserSafetyProfile::standard();
-        t.intake_and_verify(0, PbmDimension::Emotional, &p, 1_000_000)
+        let mut t = HumanTracker::from_config(&CoreConfig::default());
+        let p = human_profile();
+        t.intake_and_verify(0, HumanDimension::Emotional, &p, 1_000_000)
             .unwrap();
-        assert!((t.energy(PbmDimension::Emotional) - 0.0).abs() < 1e-10);
+        assert!((t.energy(HumanDimension::Emotional) - 0.0).abs() < 1e-10);
     }
     #[test]
     fn first_frame_accumulates() {
-        let mut t = NeuroEnergyTracker::new();
-        let p = UserSafetyProfile::standard();
-        t.intake_and_verify(50, PbmDimension::Emotional, &p, 1_000_000)
+        let mut t = HumanTracker::from_config(&CoreConfig::default());
+        let p = human_profile();
+        t.intake_and_verify(50, HumanDimension::Emotional, &p, 1_000_000)
             .unwrap();
-        assert!((t.energy(PbmDimension::Emotional) - 50.0).abs() < 1e-10);
+        assert!((t.energy(HumanDimension::Emotional) - 50.0).abs() < 1e-10);
     }
     #[test]
     fn leak_reduces_energy() {
-        let mut t = NeuroEnergyTracker::new();
-        let p = UserSafetyProfile::standard();
-        t.intake_and_verify(50, PbmDimension::Emotional, &p, 1_000_000)
+        let mut t = HumanTracker::from_config(&CoreConfig::default());
+        let p = human_profile();
+        t.intake_and_verify(50, HumanDimension::Emotional, &p, 1_000_000)
             .unwrap();
-        t.intake_and_verify(50, PbmDimension::Emotional, &p, 2_000_000)
+        t.intake_and_verify(50, HumanDimension::Emotional, &p, 2_000_000)
             .unwrap();
-        assert!(t.energy(PbmDimension::Emotional) < 100.0);
+        assert!(t.energy(HumanDimension::Emotional) < 100.0);
     }
     #[test]
     fn high_continuous_breaches() {
-        let mut t = NeuroEnergyTracker::new();
-        let mut p = UserSafetyProfile::standard();
-        p.critical_thresholds = [10.0; 4];
+        let mut t = HumanTracker::from_config(&CoreConfig::default());
+        let p = UserSafetyProfile::standard([0.0; Human::DIM_COUNT], [10.0; Human::DIM_COUNT]);
         let mut r = Ok(());
         for i in 0..100 {
-            r = t.intake_and_verify(1, PbmDimension::Emotional, &p, (i + 1) as u64 * 1_000_000);
+            r = t.intake_and_verify(1, HumanDimension::Emotional, &p, (i + 1) as u64 * 1_000_000);
             if r.is_err() {
                 break;
             }
