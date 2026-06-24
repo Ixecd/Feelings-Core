@@ -4,6 +4,7 @@
 // 调用方用法: NeuroEnergyTracker<{Human::DIM_COUNT}, Human>
 
 use crate::config::CoreConfig;
+use crate::pbm::DefenceLevel;
 use crate::species::FeelingTarget;
 use std::marker::PhantomData;
 

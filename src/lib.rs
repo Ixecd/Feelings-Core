@@ -5,6 +5,7 @@
 // Core 是运行时——操作个人数据——永不离设备
 // License: MIT
 
+pub mod bridge;
 pub mod config;
 pub mod dsir;
 pub mod pbm;
