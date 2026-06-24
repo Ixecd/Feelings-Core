@@ -132,18 +132,26 @@ impl CoreConfig {
     ///
     /// 猫狗的漏桶/阻尼/Sigmoidal 参数基于不同生理基线——不能给人用。
     /// 人为错配 → 运行时拒绝启动 Session。
-    pub fn validate(&self) -> Result<(), &'static str> {
+    /// 校验配置——拒绝跨物种混用 + CLI→设备物种不匹配。
+    /// device_species: 设备固件启动时上报的物种标识 ("human"|"canine"|...)
+    pub fn validate(&self, device_species: &str) -> Result<(), &'static str> {
+        let cli_species = match self.kind {
+            Kind::Human => "human",
+            Kind::Canine => "canine",
+            Kind::Feline => "feline",
+            Kind::Psittacine => "psittacine",
+        };
+        if cli_species != device_species {
+            return Err("物种不匹配: CLI 与固件报告的物种不一致。设备不会跨物种工作。");
+        }
         match self.kind {
             Kind::Human => {
-                // 人类默认参数范围校验——防止误配猫狗基线
                 if self.defence_sensitivity.d3 < 1.5 {
                     return Err("人类防御敏感系数 D3 不应低于 1.5——疑似猫/狗参数混入");
                 }
                 Ok(())
             }
-            Kind::Canine | Kind::Feline | Kind::Psittacine => {
-                Ok(()) // 猫狗鹦鹉——不做人类范围校验
-            }
+            Kind::Canine | Kind::Feline | Kind::Psittacine => Ok(()),
         }
     }
 }
@@ -214,14 +222,14 @@ mod tests {
 
     #[test]
     fn default_config_passes_validation() {
-        assert!(CoreConfig::default().validate().is_ok());
+        assert!(CoreConfig::default().validate("human").is_ok());
     }
 
     #[test]
     fn human_with_low_d3_fails() {
         let mut cfg = CoreConfig::default();
         cfg.defence_sensitivity.d3 = 1.0; // 猫狗级别——人类不应该这么低
-        assert!(cfg.validate().is_err());
+        assert!(cfg.validate("human").is_err());
     }
 
     #[test]
@@ -229,6 +237,12 @@ mod tests {
         let mut cfg = CoreConfig::default();
         cfg.kind = Kind::Canine;
         cfg.defence_sensitivity.d3 = 1.0;
-        assert!(cfg.validate().is_ok());
+        assert!(cfg.validate("canine").is_ok());
+    }
+
+    #[test]
+    fn species_mismatch_rejected() {
+        let cfg = CoreConfig::default(); // kind=Human
+        assert!(cfg.validate("canine").is_err()); // 固件报狗，CLI配了人
     }
 }
