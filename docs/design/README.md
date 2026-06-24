@@ -42,17 +42,20 @@ Session 结束:
 
 ```
 src/
-├── config.rs          CoreConfig——所有可调参数的单一定义点
+├── config.rs          CoreConfig——运行时配置。Vec存+validate_dimensions::<D>()校验
+├── species.rs         FeelingTarget trait——编译期展开维度数/类型/通路映射
 ├── pbm/               个人基线矩阵
 │   ├── state.rs       ColdStartGuard / DampingMatrix / DampingState / DefenceLevel
 │   ├── convergence.rs sigmoidal_scale / PbmColdStartCoefficients / d_sensitivity
 ├── personalize/       Pass 6 — FSIR × PBM → PSIR
-├── tracker/           ADR 011 — NeuroEnergyTracker 四维漏桶
-│   ├── bucket.rs      漏桶状态机 + UserSafetyProfile
-│   ├── coupling.rs    跨维度耦合 σ + 全局桶
-├── session/           Session 生命周期
-│   ├── lifecycle.rs   SessionId / SessionConfig / 帧窗口计数器
-│   ├── cooldown.rs    跨 Session 6h 冷却
+├── tracker/           ADR 011 — NeuroEnergyTracker<D,S> 泛型漏桶
+│   ├── bucket.rs      四维漏桶状态机 + UserSafetyProfile<D,S>
+│   ├── coupling.rs    跨维度耦合 σ + 全局桶 + SafetyBreach<S> 遥测枚举
+├── session/           Session<D,S> 生命周期
+│   ├── lifecycle.rs   SessionId / SessionConfig / 帧窗口 / handle_safety_breach
+│   ├── grounding.rs   D3 主动麻痹锚点——GroundingSignal<D>
+│   ├── anchor.rs      PersonalityAnchor——教练 AI 性格锚点
+│   └── cooldown.rs    跨 Session 6h 冷却
 └── dsir/              Pass 7 — DeviceCapability 多态路由
 ```
 
@@ -73,9 +76,63 @@ Sigmoidal     k / x0 / compression_alpha
 
 不是"一个人一个系数"——是所有人的默认基线已经有了，你的可以用另一套配置来覆盖。
 
+### 3.1 物种泛型——FeelingTarget trait
+
+Core 不再硬编码四维。**每个物种 = impl FeelingTarget 一个 trait。** 维度数（DIM_COUNT）、维度类型（Dimension）、通路映射——全在编译期展开。
+
+```
+Human:        4 维 (Visceral/Emotional/Tactile/Auditory)
+Psittacine:   3 维 (FeathersTactile/OpticFlow/AcousticCochlear)
+Canine:       4 维 (同人类结构，不同参数基线)
+Feline:       4 维
+
+CLI: feelings-core --species human (默认) | psittacine | canine | feline
+   不指定→human。非法值→退至 human。
+```
+
+详见 `src/species.rs`。
+
+### 3.2 维度校验——validate_dimensions::<D>()
+
+serde 不支持泛型 `[f64; D]` 的 derive——CoreConfig 使用 Vec 存储维度相关的字段（cold_start_coeffs、leak_rates、critical_thresholds）。加载后用 `validate_dimensions::<D>()` 校验所有 Vec 长度与编译期 D 一致。不匹配→拒绝启动。
+
+### 3.3 物种-设备一致性校验
+
+`CoreConfig::validate(device_species)` — CLI 指定的物种必须与设备固件启动时上报的物种一致。`--species human` 配鹦鹉固件→直接拒绝。
+
 ---
 
-## 五、动态 Shape——趋势预判 + 实时微调
+## 四、Session<D,S>——泛型生命周期
+
+Session 不再硬编码四维帧窗口。**维度数由 const D 编译期决定。**
+
+```
+Session {
+  tracker: NeuroEnergyTracker<D, S>,  // 漏桶——每帧摄入+校验
+  profile: UserSafetyProfile<D, S>,   // 用户档案——漏桶参数基线
+  frame_windows: [u32; D],            // 维度自适应帧窗口
+  personality: PersonalityAnchor,     // 教练 AI 性格锚点
+}
+
+每帧循环:
+  tracker.intake_and_verify() → verify_cross_dimension() → tick_frame_window()
+  熔断 → handle_safety_breach(source) → GroundingSignal → session_phase = Aborted
+```
+
+### 4.1 SafetyBreach 遥测
+
+熔断不再返回裸 `&'static str`。超限时返回 `SafetyBreach<S>` 枚举携带遥测数据：
+
+```
+CrossDimCoupling { source: S::Dimension, current_energy: f64, suppressed_threshold: f64 }
+GlobalBucketOverload { total_sum: f64, limit: f64 }
+```
+
+上层可根据 `source` 精准下发 D3 主动麻痹锚点。
+
+---
+
+## 六、动态 Shape——趋势预判 + 实时微调
 
 Anim 的 6 种 shape（steady/gradual_rise_fall/sharp_peak/wave等）是编译期静态波形。真实生理信号无法预置——**主体趋势可预测，帧级细节不可预设。**
 
@@ -98,7 +155,7 @@ Anim 的 6 种 shape（steady/gradual_rise_fall/sharp_peak/wave等）是编译�
 
 ---
 
-## 六、阈值收敛——范围越测越小，不是值越测越准
+## 七、阈值收敛——范围越测越小，不是值越测越准
 
 一个人的阻尼梯度阈值不是一个恒定数字——是一个范围。
 
@@ -122,7 +179,7 @@ Session 积累:
 
 ---
 
-## 七、与 Feelings-OS 的接口
+## 八、与 Feelings-OS 的接口
 
 Core 编译为单个 Rust 静态二进制——作为 Feelings-OS 的独立进程运行：
 
@@ -144,7 +201,7 @@ Feelings-OS 六守护进程:
 
 ---
 
-## 八、D3 主动麻痹锚点——GroundingSignal
+## 九、D3 主动麻痹锚点——GroundingSignal
 
 D3（极限防御）不是"停止 Session"——是"按回地面"。
 
@@ -163,7 +220,7 @@ D3（极限防御）不是"停止 Session"——是"按回地面"。
 
 ---
 
-## 九、PersonalityAnchor——教练 AI 性格锚点
+## 十、PersonalityAnchor——教练 AI 性格锚点
 
 AI 教练在超维空间里的初始锚点。没有锚点的 AI——每次运算从原点出发，无法积累连贯偏差。
 
