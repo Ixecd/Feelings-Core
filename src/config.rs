@@ -127,6 +127,27 @@ pub struct SafetyProfileConfig {
     pub standard_critical_thresholds: [f64; 4],
 }
 
+impl CoreConfig {
+    /// 校验配置是否自洽——不允许跨物种混用。
+    ///
+    /// 猫狗的漏桶/阻尼/Sigmoidal 参数基于不同生理基线——不能给人用。
+    /// 人为错配 → 运行时拒绝启动 Session。
+    pub fn validate(&self) -> Result<(), &'static str> {
+        match self.kind {
+            Kind::Human => {
+                // 人类默认参数范围校验——防止误配猫狗基线
+                if self.defence_sensitivity.d3 < 1.5 {
+                    return Err("人类防御敏感系数 D3 不应低于 1.5——疑似猫/狗参数混入");
+                }
+                Ok(())
+            }
+            Kind::Canine | Kind::Feline | Kind::Psittacine => {
+                Ok(()) // 猫狗鹦鹉——不做人类范围校验
+            }
+        }
+    }
+}
+
 /// 防御敏感系数——每个 DefenceLevel 对应不同的放大倍数。
 /// None = 标准感知 / D1 = 轻度敏感 / D2 = 高度敏感 / D3 = 极限敏感。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,5 +205,30 @@ impl Default for CoreConfig {
             },
             dimension_count: 4,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_passes_validation() {
+        assert!(CoreConfig::default().validate().is_ok());
+    }
+
+    #[test]
+    fn human_with_low_d3_fails() {
+        let mut cfg = CoreConfig::default();
+        cfg.defence_sensitivity.d3 = 1.0; // 猫狗级别——人类不应该这么低
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn canine_always_passes() {
+        let mut cfg = CoreConfig::default();
+        cfg.kind = Kind::Canine;
+        cfg.defence_sensitivity.d3 = 1.0;
+        assert!(cfg.validate().is_ok());
     }
 }
