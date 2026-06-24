@@ -47,6 +47,7 @@ impl<const D: usize, S: FeelingTarget> UserSafetyProfile<D, S> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct NeuroEnergyTracker<const D: usize, S: FeelingTarget> {
     cumulative_energy: [f64; D],
     last_tick_ns: Option<u64>,

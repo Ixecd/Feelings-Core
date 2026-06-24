@@ -42,7 +42,12 @@ mod tests {
 
     #[test]
     fn all_variants_roundtrip() {
-        for h in [HumanDimension::Visceral, HumanDimension::Emotional, HumanDimension::Tactile, HumanDimension::Auditory] {
+        for h in [
+            HumanDimension::Visceral,
+            HumanDimension::Emotional,
+            HumanDimension::Tactile,
+            HumanDimension::Auditory,
+        ] {
             let p: PbmDimension = h.into();
             let h2: HumanDimension = p.into();
             assert_eq!(h, h2);
