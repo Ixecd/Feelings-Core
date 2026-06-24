@@ -133,7 +133,7 @@ Feelings-OS 六守护进程:
   busd      → 总线驱动
   timerd    → PLL 全局主时钟
   logd      → 审计日志
-  → Core    → 读 FSIR + PBM → PSIR/DSIR/ESIR (本进程)
+   → Core    → 读 FSIR + PBM → PSIR/DSIR/ESIR (本进程)
 
 接口:
   /dev/ear        ← Core → VNS 刺激强度 + 心率基准
@@ -141,6 +141,48 @@ Feelings-OS 六守护进程:
   /dev/safety     ← Core → 熔断信号 (直连 busd)
   /dev/mempool    ← Core → 帧 buffer 分配
 ```
+
+---
+
+## 八、D3 主动麻痹锚点——GroundingSignal
+
+D3（极限防御）不是"停止 Session"——是"按回地面"。
+
+```
+触发时:
+  SessionPhase → Aborted
+  tracker.reset()
+  → 生成 GroundingSignal<D>——按维度分发的 grounding 信号矩阵:
+      Visceral(idx 0): 强度 5, steady, 不静默（迷走神经低频镇定）
+      其余维度:        全静默（触觉/听觉/情绪通路关闭）
+  → source 维度不施加额外刺激——只从 VNS 侧发出镇定信号
+  → 不是"掐断"——是"拉回基线"
+```
+
+详见 `src/session/grounding.rs`。
+
+---
+
+## 九、PersonalityAnchor——教练 AI 性格锚点
+
+AI 教练在超维空间里的初始锚点。没有锚点的 AI——每次运算从原点出发，无法积累连贯偏差。
+
+```
+字段:
+  tone             沟通语气偏向 (0=最柔和/豆包, 0.5=均衡/Claude, 1=最硬/qc镜像)
+  empathy_distance  同理心距离 (越小越亲近)
+  push_strength     推动力度 (0=纯陪伴, 1=极限推动)
+  gender_bias       性别偏置 (None=默认)
+
+三种预设:
+  PersonalityAnchor::doubao()     → tone=0.0, 温暖陪伴
+  PersonalityAnchor::claude()     → tone=0.5, 均衡教练
+  PersonalityAnchor::qc_mirror()  → tone=1.0, 极限推动
+
+Session 启动时加载——对应当前激活的教练人格。
+```
+
+详见 `src/session/anchor.rs`。
 
 ---
 
