@@ -3,17 +3,30 @@
 // 用法: feelings-core [--species human|canine|feline|psittacine]
 //       默认: human
 //
-// 作为 Feelings-OS 的一个独立进程启动。
-// 读取 FSIR + CoreConfig → PBM 校准 → PSIR/DSIR/ESIR 帧输出
-// 不联网。不在云端。数据不离设备。
+// 静态分发——运行时 species 字符串被路由到编译期单态化的泛型引擎。
+// 每物种生成独立优化路径——零运行时开销。
 
 use std::env;
 
 fn main() {
     let species = parse_species();
+    println!("Feelings-Core v0.1 — monomorphized pipeline: {}", species);
 
-    println!("Feelings-Core v0.1 — species: {}", species);
-    // v0.1: 启动骨架。Session<D,S> 已就位——下一阶段接入 FSIR 加载。
+    match species.as_str() {
+        "human" => run::<4>(),
+        "psittacine" => run::<3>(),
+        "canine" => run::<4>(),
+        "feline" => run::<4>(),
+        _ => unreachable!(),
+    }
+}
+
+fn run<const D: usize>() {
+    let config = feelings_core::config::CoreConfig::default();
+    config
+        .validate_dimensions::<D>()
+        .expect("config dimension mismatch");
+    println!("  dimension: {} ✓", D);
 }
 
 fn parse_species() -> String {

@@ -1,163 +1,43 @@
 // Feelings-Core — 运行时配置
 //
-// 所有可调参数的单一定义点。每个用户有自己的基线——系数不能写死。
-// Session 启动时从 YAML/JSON 加载，未提供则用默认值。
+// 加载时 Vec 接收任意维度——validate_dimensions::<D>() 在构造 Session 前校验长度。
+// serde 不支持泛型 [f64; D] derive——Vec 是务实选择。
 
 use serde::{Deserialize, Serialize};
 
-/// Core 服务的物种类型——决定默认参数基线。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum Kind {
-    #[default]
-    Human,
-    Canine,
-    Feline,
-    Psittacine,
-}
-
-/// Core 运行时完整配置。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CoreConfig {
-    /// 物种类型——决定默认参数基线。
-    #[serde(default)]
-    pub kind: Kind,
-    /// 冷启动参数。
-    pub cold_start: ColdStartConfig,
-    /// 阻尼参数。
-    pub damping: DampingConfig,
-    /// 漏桶参数。
-    pub leaky_bucket: LeakyBucketConfig,
-    /// Sigmoidal 缩放参数。
-    pub sigmoidal: SigmoidalConfig,
-    /// 四维差异化冷启动基线偏移系数。
-    pub cold_start_coeffs: ColdStartCoeffsConfig,
-    /// 用户安全档案——四维漏桶基线。
-    pub safety_profile: SafetyProfileConfig,
-    /// 防御敏感系数——每个 DefenceLevel 放大倍数不同。
-    pub defence_sensitivity: DefenceSensitivityConfig,
-    /// PBM 维度数量。当前 = 4 (Visceral/Emotional/Tactile/Auditory)。
-    /// 新设备入列后递增——17 条 NeuralPathway 已在 ADR 016 枚举。
-    pub dimension_count: usize,
-}
-
-/// 冷启动守护。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColdStartConfig {
-    /// 前 N 次 Session 判定为冷启动。默认 10。
     pub sessions_threshold: u32,
-    /// 冷启动结束后——阻尼从 0% 过渡到 100% 的窗口长度（Session 数）。默认 5。
     pub damping_window: u32,
 }
 
-/// 阻尼矩阵梯度阈值——每维度独立。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DampingConfig {
-    /// 情绪维度梯度阈值（×当前步长）。默认 2.0。
     pub emotional_threshold: f64,
-    /// 内脏维度梯度阈值（×当前步长）。默认 1.5。
     pub visceral_threshold: f64,
-    /// 触觉维度梯度阈值（×当前步长）。默认 3.0。
     pub tactile_threshold: f64,
-    /// 听觉维度梯度阈值（×当前步长）。默认 2.0。
     pub auditory_threshold: f64,
-    /// EMA 平滑系数 (0-1)。越大越敏感——历史数据权重越低。默认 0.5。
     pub ema_alpha: f64,
-    /// 阻尼冻结因子 (0-1)。冻结后步长乘以该系数。1.0 = 不冻结。默认 0.5。
     pub freeze_factor: f64,
 }
 
-/// 漏桶参数。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeakyBucketConfig {
-    /// 两次采样间的最大间隔（秒）。超过则视为时钟挂起——不泄漏。默认 0.1。
     pub max_dt_seconds: f64,
-    /// 非线性泄漏系数 γ。能量越高漏得越快——γ 越大加速越明显。默认 1.0。
     pub nonlinear_gamma: f64,
-    /// 不应期持续帧数。能量触碰阈值后在此窗口内暂停摄入。默认 50。
     pub refractory_frames: u32,
-    /// 跨维度耦合强度 σ (0-1)。一维充盈会同比压缩其他三维的临界阈值。默认 0.3。
     pub sigma: f64,
-    /// 全局桶权重 α。四维能量总和乘以 α 后与全局阈值对比。默认 0.3。
     pub global_alpha: f64,
-    /// 全局桶比例 β。全局阈值 = 四维临界阈值之和 × β。默认 0.9。
     pub global_beta: f64,
 }
 
-/// Sigmoidal 缩放参数。
-///
-/// 公式（ADR 009 §一）:
-///   x = original / cap
-///   σ(x) = 1/(1+e^{-k(x-x0)})
-///   compression(x) = 1 − α×σ(x)
-///   applied = original × baseline_coeff × compression(x)
-///
-/// 效果：低强度 ≈ 线性，中强度减缓，高强度趋近饱和。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigmoidalConfig {
-    /// 曲线陡峭度。越大越陡——中强度压缩更剧烈。默认 6.0。
     pub k: f64,
-    /// 曲线中点（归一化强度）。强度超过此值后压缩加速。默认 0.5（50%）。
     pub x0: f64,
-    /// 压缩幅度 α (0-1)。越大饱和越深——高强度输出压得越低。默认 0.5。
     pub compression_alpha: f64,
 }
 
-/// 四维差异化冷启动系数。
-///
-/// 系数 < 1.0 = 该维度初始敏感度偏低——需要更强信号才能触发同等感受。
-/// 来源：Feelings-ROADMAP §1.2。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColdStartCoeffsConfig {
-    /// 内脏维度系数。默认 0.75。
-    pub visceral: f64,
-    /// 情绪维度系数。默认 0.40——初始最不敏感。
-    pub emotional: f64,
-    /// 触觉维度系数。默认 0.80。
-    pub tactile: f64,
-    /// 听觉维度系数。默认 0.85。
-    pub auditory: f64,
-}
-
-/// 用户安全档案——四维漏桶基线。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SafetyProfileConfig {
-    /// 每个维度的能量泄漏速率（强度分/秒）。[Visceral, Emotional, Tactile, Auditory]。默认 [2.0; 4]。
-    pub standard_leak_rates: [f64; 4],
-    /// 每个维度的临界能量阈值——超过即 SafetyBreach。[Visceral, Emotional, Tactile, Auditory]。默认 [600.0; 4]。
-    pub standard_critical_thresholds: [f64; 4],
-}
-
-impl CoreConfig {
-    /// 校验配置是否自洽——不允许跨物种混用。
-    ///
-    /// 猫狗的漏桶/阻尼/Sigmoidal 参数基于不同生理基线——不能给人用。
-    /// 人为错配 → 运行时拒绝启动 Session。
-    /// 校验配置——拒绝跨物种混用 + CLI→设备物种不匹配。
-    /// device_species: 设备固件启动时上报的物种标识 ("human"|"canine"|...)
-    pub fn validate(&self, device_species: &str) -> Result<(), &'static str> {
-        let cli_species = match self.kind {
-            Kind::Human => "human",
-            Kind::Canine => "canine",
-            Kind::Feline => "feline",
-            Kind::Psittacine => "psittacine",
-        };
-        if cli_species != device_species {
-            return Err("物种不匹配: CLI 与固件报告的物种不一致。设备不会跨物种工作。");
-        }
-        match self.kind {
-            Kind::Human => {
-                if self.defence_sensitivity.d3 < 1.5 {
-                    return Err("人类防御敏感系数 D3 不应低于 1.5——疑似猫/狗参数混入");
-                }
-                Ok(())
-            }
-            Kind::Canine | Kind::Feline | Kind::Psittacine => Ok(()),
-        }
-    }
-}
-
-/// 防御敏感系数——每个 DefenceLevel 对应不同的放大倍数。
-/// None = 标准感知 / D1 = 轻度敏感 / D2 = 高度敏感 / D3 = 极限敏感。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefenceSensitivityConfig {
     pub none: f64,
@@ -166,10 +46,24 @@ pub struct DefenceSensitivityConfig {
     pub d3: f64,
 }
 
+/// 运行时配置——维度无关。加载后用 validate_dimensions::<D>() 校验。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoreConfig {
+    pub cold_start: ColdStartConfig,
+    pub damping: DampingConfig,
+    pub leaky_bucket: LeakyBucketConfig,
+    pub sigmoidal: SigmoidalConfig,
+    /// 四维差异化冷启动系数——长度必须 = D。
+    pub cold_start_coeffs: Vec<f64>,
+    pub standard_leak_rates: Vec<f64>,
+    pub standard_critical_thresholds: Vec<f64>,
+    pub dimension_hint: usize,
+    pub defence_sensitivity: DefenceSensitivityConfig,
+}
+
 impl Default for CoreConfig {
     fn default() -> Self {
         CoreConfig {
-            kind: Kind::Human,
             cold_start: ColdStartConfig {
                 sessions_threshold: 10,
                 damping_window: 5,
@@ -195,24 +89,40 @@ impl Default for CoreConfig {
                 x0: 0.5,
                 compression_alpha: 0.5,
             },
-            cold_start_coeffs: ColdStartCoeffsConfig {
-                visceral: 0.75,
-                emotional: 0.40,
-                tactile: 0.80,
-                auditory: 0.85,
-            },
-            safety_profile: SafetyProfileConfig {
-                standard_leak_rates: [2.0; 4],
-                standard_critical_thresholds: [600.0; 4],
-            },
+            cold_start_coeffs: vec![0.75, 0.40, 0.80, 0.85],
+            standard_leak_rates: vec![2.0; 4],
+            standard_critical_thresholds: vec![600.0; 4],
+            dimension_hint: 4,
             defence_sensitivity: DefenceSensitivityConfig {
                 none: 1.0,
                 d1: 1.3,
                 d2: 1.8,
                 d3: 2.5,
             },
-            dimension_count: 4,
         }
+    }
+}
+
+impl CoreConfig {
+    /// 校验维度长度是否与编译期 D 匹配。不匹配→拒绝启动。
+    pub fn validate_dimensions<const D: usize>(&self) -> Result<(), &'static str> {
+        if self.dimension_hint != D
+            || self.cold_start_coeffs.len() != D
+            || self.standard_leak_rates.len() != D
+            || self.standard_critical_thresholds.len() != D
+        {
+            return Err("配置维度数与编译期 D 不匹配");
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.defence_sensitivity.d1 >= self.defence_sensitivity.d2
+            || self.defence_sensitivity.d2 >= self.defence_sensitivity.d3
+        {
+            return Err("Defence sensitivity must be strictly increasing");
+        }
+        Ok(())
     }
 }
 
@@ -221,28 +131,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_passes_validation() {
-        assert!(CoreConfig::default().validate("human").is_ok());
+    fn default_validates() {
+        assert!(CoreConfig::default().validate_dimensions::<4>().is_ok());
     }
 
     #[test]
-    fn human_with_low_d3_fails() {
-        let mut cfg = CoreConfig::default();
-        cfg.defence_sensitivity.d3 = 1.0; // 猫狗级别——人类不应该这么低
-        assert!(cfg.validate("human").is_err());
+    fn dimension_mismatch_rejected() {
+        assert!(CoreConfig::default().validate_dimensions::<3>().is_err());
     }
 
     #[test]
-    fn canine_always_passes() {
-        let mut cfg = CoreConfig::default();
-        cfg.kind = Kind::Canine;
-        cfg.defence_sensitivity.d3 = 1.0;
-        assert!(cfg.validate("canine").is_ok());
-    }
-
-    #[test]
-    fn species_mismatch_rejected() {
-        let cfg = CoreConfig::default(); // kind=Human
-        assert!(cfg.validate("canine").is_err()); // 固件报狗，CLI配了人
+    fn serde_roundtrip() {
+        let json = serde_json::to_string(&CoreConfig::default()).unwrap();
+        let cfg: CoreConfig = serde_json::from_str(&json).unwrap();
+        assert!(cfg.validate_dimensions::<4>().is_ok());
     }
 }
