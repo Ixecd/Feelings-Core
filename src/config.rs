@@ -20,6 +20,9 @@ pub struct CoreConfig {
     pub cold_start_coeffs: ColdStartCoeffsConfig,
     /// 用户安全档案——四维漏桶基线。
     pub safety_profile: SafetyProfileConfig,
+    /// PBM 维度数量。当前 = 4 (Visceral/Emotional/Tactile/Auditory)。
+    /// 新设备入列后递增——17 条 NeuralPathway 已在 ADR 016 枚举。
+    pub dimension_count: usize,
 }
 
 /// 冷启动守护。
@@ -113,6 +116,7 @@ impl Default for CoreConfig {
                 standard_leak_rates: [2.0; 4],
                 standard_critical_thresholds: [600.0; 4],
             },
+            dimension_count: 4,
         }
     }
 }
