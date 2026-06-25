@@ -1,0 +1,25 @@
+docs: ADR 014 — 网络帧协议 + PBM存储接口，Core边界定义
+
+Frame 数据模型：
+- FrameHeader 16B 固定头（version/type/stream_id/payload_len/timestamp/checksum）
+- Frame 完整帧（header + payload）
+- 9 种帧类型（FSIR/PSIR/DSIR/ESIR/Safety/Heartbeat/Meta/Report/Ack）
+- 优先级分级（Safety > Ack > ESIR > PSIR > 其他）
+
+FrameCodec trait：
+- Core 定义编解码接口，默认 WireCodec（memcpy + CRC-16，零依赖）
+- feelingsd 可选 zero-copy 实现（bytes crate）
+
+PbmStorage trait：
+- 从 PbmStore 具体类型抽接口：save_snapshot/load_latest/list_sessions
+- JsonFileStore（边缘）/ SqliteStore（服务器）/ PostgresStore（v1.0+）
+- SessionManager<D, S, Store> 泛型化 store
+
+SyncEventSource：
+- epoll LT/ET 双模事件触发，AtomicU64 位掩码，零依赖零分配
+- 6 种事件位：SESSION_STARTED/FRAME_BATCH_READY/SESSION_ENDED/SAFETY_BREACH/RECONNECT_SYNC/PBM_DIRTY
+
+Q1/Q2/Q3 已拍板：
+- v0.x 同步写，v1.0 delta buffer 批量异步
+- v0.x 不压缩，v1.0 压缩
+- epoll 风格事件源替代 push/poll enum
