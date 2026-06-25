@@ -4,7 +4,6 @@
 // 调用方用法: NeuroEnergyTracker<{Human::DIM_COUNT}, Human>
 
 use crate::config::CoreConfig;
-use crate::pbm::DefenceLevel;
 use crate::species::FeelingTarget;
 use std::marker::PhantomData;
 
@@ -38,6 +37,20 @@ impl<const D: usize, S: FeelingTarget> UserSafetyProfile<D, S> {
             critical_thresholds,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn from_config(config: &crate::config::CoreConfig) -> Self {
+        let leak: [f64; D] = config
+            .standard_leak_rates
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_| panic!("leak_rates length != {D}"));
+        let thresholds: [f64; D] = config
+            .standard_critical_thresholds
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_| panic!("critical_thresholds length != {D}"));
+        Self::standard(leak, thresholds)
     }
     pub fn leak_rate(&self, dim: S::Dimension) -> f64 {
         self.leak_rates[S::dim_index(dim)]

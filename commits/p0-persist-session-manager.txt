@@ -1,0 +1,19 @@
+feat: P0#1 PBM persistence + P0#2 SessionManager
+
+P0#1 — PBM 持久化 (JSON flat files, ~/.feelings/pbm/):
+- src/pbm/persist.rs: PbmStore save/load/latest，serde JSON，零新依赖
+- ColdStartGuard + DampingState 加 Serialize/Deserialize
+- DampingState 加 Default impl
+- 3 tests: save/load roundtrip, empty latest, session history
+
+P0#2 — Session 管理器:
+- src/session/manager.rs: SessionManager<D,S> 封装 Session 生命周期
+- 自动从上次 session 恢复 ColdStartGuard + DampingState
+- tick() 单维度摄入; end_session()/handle_safety_breach() 自动持久化
+- 4 tests: cold start, tick phase, end+reload roundtrip, safety breach
+
+维护修复:
+- tracker/coupling.rs: needless_range_loop → iterator
+- tracker/bucket.rs: 移除未使用 DefenceLevel import; UserSafetyProfile::from_config
+- session/aot.rs: 移除未使用 HumanDimension import
+- make dev 全绿: 33 tests, 0 warnings

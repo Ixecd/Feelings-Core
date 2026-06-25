@@ -22,18 +22,18 @@ impl<const D: usize, S: FeelingTarget> NeuroEnergyTracker<D, S> {
         profile: &UserSafetyProfile<D, S>,
     ) -> Result<(), SafetyBreach<S>> {
         let energies = self.all_energies();
-        for i in 0..D {
-            let e_norm = energies[i] / profile.critical_thresholds[i].max(1.0);
+        for (i, &e_i) in energies.iter().enumerate() {
+            let e_norm = e_i / profile.critical_thresholds[i].max(1.0);
             let coupling = self.sigma * e_norm;
-            for j in 0..D {
+            for (j, &e_j) in energies.iter().enumerate() {
                 if i == j {
                     continue;
                 }
                 let effective = profile.critical_thresholds[j] * (1.0 - coupling);
-                if energies[j] > effective {
+                if e_j > effective {
                     return Err(SafetyBreach::CrossDimCoupling {
                         source: S::index_to_dim(i).expect("valid index"),
-                        current_energy: energies[j],
+                        current_energy: e_j,
                         suppressed_threshold: effective,
                     });
                 }

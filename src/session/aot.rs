@@ -137,7 +137,7 @@ impl AotSimulator {
 mod tests {
     use super::*;
     use crate::config::CoreConfig;
-    use crate::species::{Human, HumanDimension};
+    use crate::species::Human;
     use crate::tracker::UserSafetyProfile;
 
     fn human_profile() -> UserSafetyProfile<{ Human::DIM_COUNT }, Human> {

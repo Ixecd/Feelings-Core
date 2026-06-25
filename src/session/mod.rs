@@ -5,3 +5,4 @@ pub mod aot;
 pub mod cooldown;
 pub mod grounding;
 pub mod lifecycle;
+pub mod manager;

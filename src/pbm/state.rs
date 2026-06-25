@@ -71,7 +71,7 @@ impl SessionLabel {
 
 // ── 冷启动守护 ────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColdStartGuard {
     pub threshold: u32,
     pub session_count: u32,
@@ -122,13 +122,25 @@ pub enum StepState {
     Frozen { reason: PbmDimension },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DampingState {
     step_multipliers: [f64; 4],
     previous_snapshot: Option<[f64; 4]>,
     ema_alpha: f64,
     freeze_factor: f64,
     cold_start: bool,
+}
+
+impl Default for DampingState {
+    fn default() -> Self {
+        DampingState {
+            step_multipliers: [1.0; 4],
+            previous_snapshot: None,
+            ema_alpha: 0.3,
+            freeze_factor: 0.85,
+            cold_start: true,
+        }
+    }
 }
 
 impl DampingState {
