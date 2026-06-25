@@ -6,3 +6,4 @@ pub mod cooldown;
 pub mod grounding;
 pub mod lifecycle;
 pub mod manager;
+pub mod watchdog;

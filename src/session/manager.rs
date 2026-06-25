@@ -16,6 +16,7 @@ pub struct SessionManager<const D: usize, S: FeelingTarget> {
     guard: ColdStartGuard,
     damping: DampingState,
     total_sessions: u32,
+    last_tick_ns: u64,
 }
 
 impl<const D: usize, S: FeelingTarget> SessionManager<D, S> {
@@ -69,6 +70,7 @@ impl<const D: usize, S: FeelingTarget> SessionManager<D, S> {
             guard,
             damping,
             total_sessions,
+            last_tick_ns: 0,
         })
     }
 
@@ -110,6 +112,9 @@ impl<const D: usize, S: FeelingTarget> SessionManager<D, S> {
             self.session.phase = SessionPhase::Running;
         }
 
+        // intake_and_verify 内部处理时钟回拨（静默跳过，不返回 error）。
+        // verify_cross_dimension 失败 → ? 提前返回 → last_tick_ns 不会被更新 →
+        // 看门狗持续检测到 tick_gap 扩大 → 判定为潜在僵尸 session。
         let _ =
             self.session
                 .tracker
@@ -118,9 +123,16 @@ impl<const D: usize, S: FeelingTarget> SessionManager<D, S> {
             .tracker
             .verify_cross_dimension(&self.session.profile)?;
         self.session.tick_frame_window(dim);
+        // 只有校验全部通过后才更新心跳——不合格的帧不配让看门狗放松警惕。
+        self.last_tick_ns = now_ns;
 
         Ok(None)
     }
+
+    pub fn last_tick_ns(&self) -> u64 {
+        self.last_tick_ns
+    }
+
     pub fn update_damping(&mut self, values: &[f64; 4]) {
         self.damping.update(values);
     }
@@ -201,9 +213,14 @@ mod tests {
     }
 
     fn isolated_manager() -> SessionManager<{ Human::DIM_COUNT }, Human> {
-        let tmp = env::temp_dir().join("feelings_test_mgr_isolated");
-        let _ = fs::remove_dir_all(&tmp);
-        human_manager_at(tmp.to_str().unwrap())
+        let mut base = env::temp_dir().join("feelings_test_mgr_isolated");
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        base.push(format!("test_{}", suffix));
+        let _ = fs::remove_dir_all(&base);
+        human_manager_at(base.to_str().unwrap())
     }
 
     #[test]
@@ -223,9 +240,14 @@ mod tests {
 
     #[test]
     fn end_session_persists_and_loads() {
-        let tmp = env::temp_dir().join("feelings_test_mgr_persist");
-        let _ = fs::remove_dir_all(&tmp);
-        let root = tmp.to_str().unwrap().to_string();
+        let mut base = env::temp_dir().join("feelings_test_mgr_persist");
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        base.push(format!("test_{}", suffix));
+        let _ = fs::remove_dir_all(&base);
+        let root = base.to_str().unwrap().to_string();
 
         let mut mgr = human_manager_at(&root);
         mgr.tick(30, HumanDimension::Visceral, 1_000_000).unwrap();

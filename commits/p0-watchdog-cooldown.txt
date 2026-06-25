@@ -1,0 +1,17 @@
+feat: P0#3 SessionWatchdog + P0#4 CooldownTracker
+
+P0#3 — SessionWatchdog (10Hz 重校验):
+- 停滞检测: phase=Running 但 500ms 无 tick → anomaly
+- 能量突变检测: 连续两轮 watchdog 间能量 delta > threshold → anomaly
+- 帧窗口溢出检测: 长时间无进度 + 能量非零 → anomaly
+- 防御升级建议: anomaly≥3→D2, ≥5→D3
+- 4 tests: idle no anomaly, stale detection, energy spike, escalation to D2
+
+P0#4 — CooldownTracker (经线冷却 + 渐进恢复):
+- 每维度独立冷却: 同维度高强度的 6h 最小间隔
+- 前 5 分钟严格衰减 0.2, 5min→6h 线性恢复至 1.0
+- 防御层级渐进降级: D3→D2→D1, 每步 ≥5min 间隔
+- escalate() 升级, try_de_escalate() 降级
+- 7 tests: 初始无冷却/启动冷却/恢复/严格衰减/D3降级/独立维度/升级
+
+44 tests green, 0 warnings

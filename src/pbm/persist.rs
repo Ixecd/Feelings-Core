@@ -95,10 +95,19 @@ mod tests {
     use super::*;
     use crate::config::CoreConfig;
 
+    fn temp_root() -> PathBuf {
+        let mut base = env::temp_dir().join("feelings_test_pbm");
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        base.push(format!("test_{}", suffix));
+        let _ = fs::remove_dir_all(&base);
+        base
+    }
+
     fn temp_store() -> PbmStore {
-        let tmp = std::env::temp_dir().join("feelings_test_pbm");
-        let _ = fs::remove_dir_all(&tmp);
-        PbmStore::with_root(&tmp, "human").expect("create store")
+        PbmStore::with_root(temp_root(), "human").expect("create store")
     }
 
     fn sample_snapshot(id: u64, count: u32, total: u32) -> PbmSnapshot {
