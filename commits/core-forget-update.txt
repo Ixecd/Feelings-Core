@@ -1,0 +1,7 @@
+docs: Core-FORGET 全量更新——P0 7/7 全部闭合
+
+P0#1-P0#4 落代码关闭：PBM持久化、SessionManager、Watchdog、CooldownTracker
+ADR 014-017 定稿记录
+ADR 007 补充两种通路+震慑中间态
+49 tests, 零 clippy 警告
+模块全景更新至 9 模块
