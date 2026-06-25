@@ -1,0 +1,20 @@
+docs: ADR 017 — PolyStore，编译期异构存储引擎
+
+核心洞察：
+  不同数据用不同结构——不是"一个 HashMap 统治一切"
+  PBM→BTreeMap(范围) Session→FxHashMap(点查) Safety→SkipList/Vec(有序遍历)
+  Topology→DiGraph(最短路径) Timeline→RingBuffer(时间窗) Frames→Vec(连续cache友好)
+  Registry→FxHashMap(点查)
+
+enum dispatch 零成本:
+  match + 编译器 jump table → 无虚函数表，无 trait object 间接跳
+  每个方法只 match 自己有意义的 slot 索引——编译器优化为单次跳转
+
+统一基础设施:
+  每个 slot 包裹在 ADR 015 的 ThreadLocalCache 里
+  变更统一 signal ADR 014 的 SyncEventMask::PBM_DIRTY
+  DeltaBuffer 批量 flush 走 ADR 016 的背压策略
+
+零新依赖: std::BTreeMap + FxHashMap
+petgraph 不需要(v0.x 设备<10，手写邻接表+20行Dijkstra)
+crossbeam-skiplist 不需要(v0.x 有序Vec够用)
