@@ -1,0 +1,24 @@
+docs: ADR 015 — 缓存分层，KVCache + Priority-LRU + 内存池接口
+
+Cache 数据模型：
+- CacheKey: 复合键(namespace + id + version)
+- CacheEntry: Bytes 零拷贝胖指针 + priority 1-5 + TTL + last_access
+- CachePriority: pinned(≥4) 永不驱逐，LOWEST(1) 最先被踢
+
+驱逐策略（已修正）：
+- Step 1: 全局过期扫描(prio 1→3)，死数据一律先死
+- Step 2: Priority-LRU——低优先+同prio内最久未访问
+- 防止 prio 1 新条目被踢而 prio 2 死数据霸占缓存的悖论
+
+CacheLayer trait:
+- get/put/invalidate —— Core 定义，L1/L2/L3 各自实现
+- put() 返回 Option<CacheEntry> 做管道级联，拒绝闭包回调
+- &mut self 单线程保证，L2 实现方自己加 RwLock
+
+ThreadLocalCache (L1):
+- capacity≤128: Vec 线性扫描(CPU缓存局部性)
+- capacity>128: FxHashMap 自动切换(防千级条目性能塌陷)
+
+Q1 Buy bytes::Bytes — 拒绝泛型单态化膨胀
+Q2 纯 &mut self — 不做假并发
+Q3 put() 返回值级联 — 拒绝回调生命周期绑架
