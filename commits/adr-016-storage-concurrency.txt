@@ -1,0 +1,24 @@
+docs: ADR 016 — 存储全景 + 并发模型 + 自研替代Redis + channel背压
+
+数据库六件套：
+- PostgreSQL(主库) + TimescaleDB(时序) + NATS(流) + MinIO(对象) + etcd(分布式状态)
+- KVCache(自研替代Redis) — ThreadLocalCache + Leaderboard(BTreeMap) + RateLimiter(AtomicU64 ring)
+- TiDB不要——查询模式撞不上分布式OLTP价值区间
+
+并发模型：
+- 事件驱动 + Delta Buffer批量merge + M:N协程，一队列一线程
+- 锁不是瓶颈(RwLock contention<0.01%)，channel逐条push才是背压
+- parking_lot::RwLock(严禁tokio::sync版本)，锁内绝不.await
+
+DeltaBuffer多维复合触发器：
+- 数量+字节数+定时器三合一，任一触发即flush
+- WSS 1KB/10ms兜底——防止关键帧被无限期滞留
+
+四个硬核坑：
+- RateLimiter环形覆盖擦除→tick_id编码在AtomicU64高32位
+- 阻塞IO毒药→spawn_blocking隔离，主线上永不碰同步磁盘IO
+- DeltaBuffer异步共享→Rc<RefCell<>>单线程零成本
+- TimescaleDB hypertable→复合主键必须包含时间列
+
+Q1: 多维复合阈值(数量+字节+定时器) 已拍
+Q2: parking_lot::RwLock, 不搞分片 已拍
