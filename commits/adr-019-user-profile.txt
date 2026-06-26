@@ -1,0 +1,13 @@
+docs: ADR 019 — UserProfile 结构化用户档案 KV 存储
+
+全量字段表——每字段标注使用者(豆包/Claude/qc)和用途
+四层存储策略: Tier1必须(200B)/Tier2高频(500B)/Tier3低频(1KB)/Tier4可选
+总空间<2KB/人——设备4MB够存2000份
+
+ProfileStore trait: load/put_field/get_field/fields/delete_field
+来源优先级: UserProvided>CoachObserved>PBMInferred
+Agent只能写自己能观察到的字段
+
+每个Agent的deliberate()查表顺序——豆包查称呼+星座+作息,
+Claude查背景+在乎+恐惧,qc查遗传病+慢性病+人格特点。
+2KB存一个人的全部——不是吝啬,是每一字节都有资格在这。
