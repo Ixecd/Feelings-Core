@@ -1,0 +1,14 @@
+docs: ADR 018 — CoachEnsemble 三Agent共识协议 + IntercomBus
+
+CoachAgent trait: deliberate/respond/user_facing/persona
+IntercomBus: 结构化共识总线(opinion→consensus)，非聊天室
+CoachEnsemble: 编排层——register/interact/safety_override
+CoachMood: 教练自己的NeuroEnergyTracker——和用户独立
+
+共识三条规则:
+  1. Veto绝对否决——任何agent说"不"本轮不推
+  2. 安全事件→qc无条件接管——不讨论不通知
+  3. 温和优先降级——三个push_level取最小值
+
+Agent私人聊天: IntercomBus::private() 不参与共识不给用户看
+事件级联: SafetyBreach→qc取代豆包→接管全部交互权限
