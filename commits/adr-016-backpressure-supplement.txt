@@ -1,0 +1,6 @@
+docs: ADR 016 §5.2 补充——KubePivot drop vs Feelings 对话帧不丢
+
+Red 级为什么保留对话帧而 KubePivot 可以丢 reconcile task：
+KubePivot 丢的是可幂等重试的任务——下轮 watch 自动补。
+Feelings 不能丢对话帧——对面是人在等。"等一下，卡了"是信任破裂。
+不是"丢掉不重要"——是"丢掉可以等的。保住有人在等的。"

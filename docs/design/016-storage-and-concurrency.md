@@ -430,6 +430,21 @@ pub enum Backpressure {
 
 DeltaBuffer 在 `should_flush()` 时检查自身深度，返回背压信号。生产方（SessionManager::tick）根据信号决定当前帧是否跳过非关键数据的写入。
 
+**Red 级为什么保留对话帧而 KubePivot 可以丢 reconcile task**：
+
+```
+KubePivot: 丢的是一轮 reconcile——下轮 watch 自动补——状态是幂等的。
+          AP 最终一致——丢了就丢了，watch 会拉回来。
+
+Feelings:  对话帧是人在等。不能幂等重试。"等一下，卡了"是信任破裂。
+          Red 级只接受 SignalSafety + DataEsir + 对话帧——
+          不是这些帧比 reconcile task 更重——
+          是这些帧对面有一个人在等。
+
+不是"丢掉不重要"。
+是"丢掉可以等的。保住有人在等的。"
+```
+
 ---
 
 ## 六、微观硬核——四个必须回避的坑
