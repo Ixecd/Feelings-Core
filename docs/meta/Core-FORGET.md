@@ -24,7 +24,7 @@
 
 ---
 
-## P1 — 功能受限（0/6）
+## P1 — 功能受限（0/7）
 
 1. **个人基线收敛跟踪零代码** — PBM 四维偏移的收敛趋势检测未实现。
 
@@ -37,6 +37,8 @@
 5. **性格锚点 PersonalityAnchor 虚空隐形** — 无 VSA 向量空间。AI 教练无法积累连贯偏差。
 
 6. **f64 浮点与实时确定性冲突** — sigmoidal_scale 的 exp() 在 1ms 帧循环引入不可预测延迟。需定点数 LUT 或多项式逼近。
+
+7. **社交上下文感知层零代码** — PBM 四维之上缺少 SocialContext 层：同一用户的直白/迂回风格随 context (friend/work/romantic/stranger) 切换。教练对话策略需 context-aware 分流——直白型直接给数据，迂回型走潜台词引导。PersonalityAnchor 需新增 directness_preference per context。
 
 ---
 
