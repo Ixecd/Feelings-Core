@@ -17,6 +17,11 @@ UserProfile      = Agent 对用户的结构化了解  ← "她叫小姐，天蝎
 
 设备空间有限 + 不联网 = 每个字段都必须有至少一个 Agent 在 deliberate() 里查到。
 没有 filler 字段。没有"备着以后用"。
+
+档案只存数据，不存定义。判断（性格标签、状态结论）是教练在
+deliberate() 时从数据现算的，用完即弃，永不落盘——落盘的判断
+会过期（人变判断不变）、会自证（旧判断当地面真值）、会把档案变成标签机。
+档案是 etcd，教练是 controller：etcd 存事实，controller 现算。
 ```
 
 > 性质：Core 层数据结构——Agent 的决策输入
@@ -33,6 +38,7 @@ pub struct UserProfile {
     // ═══════════════════════════════════════════════════════════
     pub name: String,               // 豆包: 称呼用。qc: 确认身份用
     pub gender: Gender,             // 豆包: 称呼（先生/小姐/哥/姐）
+                                    // 立场：只有 Male | Female。教练观察写入 A 层，锁死
     pub age: Option<u8>,            // Claude: 判断 stage。qc: 未成年人→安全加强
     pub zodiac: Option<ZodiacSign>, // 豆包: 个性化对话（"天蝎今天会是好的一天"）
     pub birthday: Option<NaiveDate>,// 豆包: 生日提醒。不是社交功能——是私人记忆
@@ -81,6 +87,11 @@ pub struct UserProfile {
     pub chronic_conditions: Vec<String>,     // 慢性病——影响强度 cap
 
     // ═══════════════════════════════════════════════════════════
+    // 决策锚点——A1 层，人生岔口的选择史（教练观察记录，仪式写入）
+    // ═══════════════════════════════════════════════════════════
+    pub decision_anchors: Vec<DecisionAnchor>,
+
+    // ═══════════════════════════════════════════════════════════
     // 元数据——Core 管理，Agent 不直接读写
     // ═══════════════════════════════════════════════════════════
     pub created_at: u64,
@@ -88,10 +99,22 @@ pub struct UserProfile {
     pub source_map: HashMap<String, ProfileSource>, // field_name → 来源
 }
 
+pub struct DecisionAnchor {
+    pub kind: AnchorKind,     // 职业/居住/合同/关系/其他
+    pub summary: String,      // 选了什么（"签了 30 年房贷"）
+    pub reason: String,       // 当时为什么（选择 + 理由一起记）
+    pub status: AnchorStatus, // Active | Completed——完结不删除，标记归档
+    pub at: u64,              // 时间戳
+}
+
+pub enum AnchorKind { Career, Residence, Contract, Relationship, Other }
+pub enum AnchorStatus { Active, Completed }
+
 pub enum ProfileSource {
-    UserProvided,     // 用户自己填的——最高置信度
-    CoachObserved,    // Agent 在交互中推理的——中置信度
-    PBMInferred,      // 从生理数据推算的——低置信度（如作息从活跃时间推断）
+    UserProvided,     // C 层——用户自己填的偏好，用户可改
+    CoachObserved,    // B 层——Agent 观察写入，版本化留痕
+    PBMInferred,      // B 层——从生理数据推算，带来源可复算
+    Anchor,           // A 层——锚：决策锚点/金标准/性别，仪式写入锁死
 }
 ```
 
@@ -123,7 +146,7 @@ Tier 4（可省略——用户不提供就不存）:
 自由文本                        枚举化
 ────────                        ──────
 career_stage: "创业"/"startup"  CareerStage: Student | Employed | Unemployed | Founder | Retired
-gender: "男"/"male"/"M"         Gender: Male | Female | NonBinary | PreferNotToSay
+gender: "男"/"male"/"M"         Gender: Male | Female——立场只有男女，没有谱系
 zodiac: "天蝎"/"scorpio"       ZodiacSign: Aries..Pisces——固定12值
 education: "本科"/"bachelor"   Education: HighSchool | Bachelor | Master | PhD | Other
 ```
@@ -150,8 +173,13 @@ ProfileSource 不只是一张标签——它决定了数据的生命周期：
                       用户换了工作/换了国家 → 30 天不够新数据覆盖 → 过期自动清
   CoachObserved 字段  → TTL 90 天  → 90 天后自动降级清除
                       "当前阶段"、"最近接触的内容"——半年后可能完全变了
-  UserProvided 字段   → 永久有效    → 用户不主动更新就不变
-                      "我叫什么"、"我是谁"——这些你自己说了算
+  UserProvided 字段   → 永久有效    → 用户自己管理（C 层：偏好）
+                      用户主动更新才变，系统不设 TTL
+  Anchor 字段         → 两种生命周期
+                      A1 决策锚点     永久坐标：岔口选择史，
+                                      完结不删除，标记 Completed 归档
+                      A2 身体金标准   周期性过期：定期重测，旧值归档
+                      gender/birthday 事实锚：写后锁死
 
 实现——每个字段的 source_map entry 从 ProfileSource 升级为:
   (ProfileSource, u64)  // (来源, 首次写入的时间戳)
@@ -159,7 +187,8 @@ ProfileSource 不只是一张标签——它决定了数据的生命周期：
 判断是否过期:
   PBMInferred 字段: now - timestamp > 30×86400×1e9 → 过期
   CoachObserved 字段: now - timestamp > 90×86400×1e9 → 过期
-  UserProvided 字段: 永不过期
+  UserProvided 字段: 永不过期（用户管理）
+  Anchor 字段: A1 永不过期；A2 按体检周期（每几个月）归档旧值
 
 不额外储存 TTL 列——用来源类型映射到固定常量——省存储。
 ```
@@ -172,7 +201,8 @@ pub trait ProfileStore {
     fn load(&self, user_id: &str) -> Result<UserProfile, ProfileError>;
 
     /// 写入单个字段——增量更新，不覆写全量。
-    /// source 标记来源——UserProvided > CoachObserved > PBMInferred
+    /// source 标记来源与层级——A(Anchor) > C(UserProvided) > B(CoachObserved/PBMInferred)
+    /// A 层字段的写入必须走仪式通道（确认 + 留痕），普通 put 拒绝。
     fn put_field(
         &mut self,
         user_id: &str,
@@ -187,7 +217,8 @@ pub trait ProfileStore {
     /// 列出所有存在值的字段名
     fn fields(&self, user_id: &str) -> Vec<String>;
 
-    /// 删除字段——用户主动要求
+    /// 删除字段——用户主动要求。
+    /// C 层字段可删；A 层字段不可删（只能经仪式通道改状态/归档）。
     fn delete_field(&mut self, user_id: &str, field_name: &str) -> Result<(), ProfileError>;
 }
 ```
@@ -210,10 +241,11 @@ pub trait ProfileStore {
         → 合并: ["坚韧", "内向", "有创造力"]
         → 去重: "内向"只保留一条
 
-  用户写入 → 先清空列表再写（用户是全量覆盖的最高权限）
-    例: traits = ["坚韧", "内向", "有创造力"]
-        用户重新填 traits = ["内心强大"]
-        → 结果: ["内心强大"]——不是追加，是重置
+  用户写入 → 先清空列表再写（用户的全量覆盖权限限于 C 层字段）
+     例: traits = ["坚韧", "内向", "有创造力"]
+         用户重新填 traits = ["内心强大"]
+         → 结果: ["内心强大"]——不是追加，是重置
+     A 层字段不适用本规则——A 层不接受普通写入。
 ```
 
 ### 3.2 Tier1 内存常驻——写穿保证不掉电丢
@@ -266,24 +298,49 @@ Agent 对用户的了解               Agent 之间的对话记忆
 "她叫小姐，天蝎座，喜欢..."      "上次 qc 跟我说'你做你自己'——我记住了"
 ```
 
-## 六、字段写入的安全规则
+## 六、字段写入的安全规则——三层写保护
 
 ```
-规则 1: 来源优先级不可绕过
-  某字段被 UserProvided 覆盖 → CoachObserved/PBMInferred 写入被拒绝。
-  用户可以随时覆盖任何字段——用户是最高权限。
-  用户删除某字段 → 所有更低来源的写入也同时被清。
+三层：
+  A 锚层（不可复写）
+    A1 决策锚点（decision_anchors）：人生岔口的选择史，
+       教练观察记录，仪式写入（确认 + 留痕）。
+       完结不删除，标记 Completed 归档。
+    A2 身体金标准（体检快照）+ 事实锚（gender/birthday）：
+       写后锁死，连用户都不能改。
+       想改 = 重新走一次仪式（重新体检/重新确认）。
+  B 观察层（教练可写，版本化）
+    CoachObserved/PBMInferred 字段。
+    可复写，但每次复写留痕（append-only 历史 + 当前值）。
+  C 偏好层（用户可改）
+    name/preferred_names/zodiac/likes/dislikes 等用户自己给的东西。
+    用户随时改——但用户的权限到此为止。
+
+规则 1: 层间不可跨越
+  低层写入不能覆盖高层字段：B/C 不能写 A 层。
+  B 层字段被 C 层（用户）覆盖 → B 的后续自动写入被拒绝，
+  直到用户删除该字段（删除 = 放弃 C 层主张，B 恢复写入）。
+  用户不能修改 A 层——A 层的修改只有仪式通道。
 
 规则 2: Agent 只能写自己能观察到的
-  豆包: name/gender/preferred_names/zodiac/traits/likes/dislikes/cares_about
-  Claude: education/career_stage/expertise/current_interests/afraid_of
-  qc: family_genetic_diseases/allergies/chronic_conditions
+  豆包: name/gender（仅首次观察后经仪式写入）/preferred_names/zodiac/likes/dislikes/cares_about
+  Claude: education/career_stage/expertise/current_interests
+  qc: family_genetic_diseases/allergies/chronic_conditions/decision_anchors（仪式通道）
+  性别立场：只有男女。教练根据长期采集观察写入，写后锁死——
+  申报可有可无，数据自己会说话；不排斥任何人，但坐标系只有两个锚。
 
 规则 3: PBM 只推不算
   PBM 可以 infer 作息时间（typical_wake/sleep）——标记为 PBMInferred。
-  PBM 不能直接修改 UserProvided 覆盖的字段。
+  PBMInferred 是统计量（数据的汇总），不是判断——可存，
+  但必须带来源标记和可复算性。
+  PBM 不能写 A 层，不能覆盖 C 层。
+
+规则 4: 判断不落盘
+  任何 Agent 不得把判断写入档案（"性格内向""最近状态差"这类结论）。
+  判断在 deliberate() 时从数据现算，存在于决策上下文，用完即弃。
+  落盘的判断 = 过期 + 自证 + 标签机。
 ```
 
 ---
 
-*2KB 存一个人的全部。不是吝啬——是尊重。不是"存不下"——是"每一字节都有资格在这。"*
+*2KB 存一个人的全部。不是吝啬——是尊重。不是"存不下"——是"每一字节都有资格在这"。档案只存数据，不存定义：A 层锁事实，B 层留观察，C 层归用户，判断永不落盘——它是 controller 现算出来的，不是 etcd 存进去的。*
